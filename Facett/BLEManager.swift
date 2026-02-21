@@ -2330,7 +2330,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         // Convert serials to UUIDs
         let cameraIds = cameraSerials.compactMap { serial -> UUID? in
-            return CameraSerialNumberManager.shared.getUUID(forSerial: serial)
+            return CameraSerialResolver.shared.getUUID(forSerial: serial)
         }
 
         let cameraCount = cameraIds.count
@@ -2357,7 +2357,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func startRecordingForCamerasInSet(_ cameraSerials: Set<String>) {
         // Convert serial numbers to UUIDs
         let cameraIds = cameraSerials.compactMap { serial -> UUID? in
-            return CameraSerialNumberManager.shared.getUUID(forSerial: serial)
+            return CameraSerialResolver.shared.getUUID(forSerial: serial)
         }
         recordingManager.startRecordingForCamerasInSet(Set(cameraIds))
     }
@@ -2365,7 +2365,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func stopRecordingForCamerasInSet(_ cameraSerials: Set<String>) {
         // Convert serial numbers to UUIDs
         let cameraIds = cameraSerials.compactMap { serial -> UUID? in
-            return CameraSerialNumberManager.shared.getUUID(forSerial: serial)
+            return CameraSerialResolver.shared.getUUID(forSerial: serial)
         }
         recordingManager.stopRecordingForCamerasInSet(Set(cameraIds))
     }

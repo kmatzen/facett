@@ -43,7 +43,7 @@ struct ContentView: View {
 
         if let activeGroup = cameraGroupManager.activeGroup {
             camerasToCheck = activeGroup.cameraSerials.compactMap { serial in
-                guard let uuid = CameraSerialNumberManager.shared.getUUID(forSerial: serial) else { return nil }
+                guard let uuid = CameraSerialResolver.shared.getUUID(forSerial: serial) else { return nil }
                 return bleManager.connectedGoPros[uuid]
             }
         } else {
