@@ -13,10 +13,10 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Configuration
-PROJECT_NAME="GoProConfigurator"
-SCHEME_NAME="GPControl"
+PROJECT_NAME="Facett"
+SCHEME_NAME="Facett"
 SIMULATOR_NAME="iPhone 16"
-DEVICE_ID="00008130-000578862861401C" # Kevin's iPhone
+DEVICE_ID="${FACETT_DEVICE_ID:-}"
 
 # Test types
 TEST_TYPES=("unit" "ui" "integration" "device" "all")
@@ -40,6 +40,9 @@ print_error() {
 
 # Function to check if device is connected
 check_device_connected() {
+    if [ -z "$DEVICE_ID" ]; then
+        return 1
+    fi
     if xcrun devicectl list devices | grep -q "$DEVICE_ID"; then
         return 0
     else
@@ -65,8 +68,8 @@ run_unit_tests() {
         -project "$PROJECT_NAME.xcodeproj" \
         -scheme "$SCHEME_NAME" \
         -destination "platform=iOS Simulator,name=$SIMULATOR_NAME" \
-        -only-testing:GoProConfiguratorTests/ParserTests \
-        -only-testing:GoProConfiguratorTests/SettingsTests \
+        -only-testing:FacettTests/ParserTests \
+        -only-testing:FacettTests/SettingsTests \
         | xcpretty
 
     if [ $? -eq 0 ]; then
@@ -86,7 +89,7 @@ run_ui_tests() {
         -project "$PROJECT_NAME.xcodeproj" \
         -scheme "$SCHEME_NAME" \
         -destination "platform=iOS Simulator,name=$SIMULATOR_NAME" \
-        -only-testing:GoProConfiguratorUITests/UIWorkflowTests \
+        -only-testing:FacettUITests/UIWorkflowTests \
         | xcpretty
 
     if [ $? -eq 0 ]; then
@@ -106,7 +109,7 @@ run_integration_tests() {
         -project "$PROJECT_NAME.xcodeproj" \
         -scheme "$SCHEME_NAME" \
         -destination "platform=iOS Simulator,name=$SIMULATOR_NAME" \
-        -only-testing:GoProConfiguratorTests/BLETestStrategy \
+        -only-testing:FacettTests/BLETestStrategy \
         | xcpretty
 
     if [ $? -eq 0 ]; then
@@ -131,7 +134,7 @@ run_device_tests() {
         -project "$PROJECT_NAME.xcodeproj" \
         -scheme "$SCHEME_NAME" \
         -destination "platform=iOS,id=$DEVICE_ID" \
-        -only-testing:GoProConfiguratorTests/ManualTest \
+        -only-testing:FacettTests/ManualTest \
         | xcpretty
 
     if [ $? -eq 0 ]; then

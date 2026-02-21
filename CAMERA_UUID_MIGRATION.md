@@ -32,9 +32,9 @@ The solution uses serial numbers (from AP SSID) as the primary stable identifier
 - Provides both UUID-based and serial-based lookup methods for compatibility
 - Stores display names keyed by serial number for persistence
 
-### Component: `CameraSerialNumberManager`
+### Component: `CameraIdentityManager`
 
-Located at: `GoProConfigurator/GoProConfigurator/CameraSerialNumberManager.swift`
+Located at: `Facett/Facett/CameraIdentityManager.swift`
 
 **Key Features:**
 - Maintains runtime mappings: serial ↔ UUID (bidirectional)

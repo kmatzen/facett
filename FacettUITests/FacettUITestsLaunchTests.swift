@@ -1,13 +1,13 @@
 //
-//  GoProConfiguratorUITestsLaunchTests.swift
-//  GoProConfiguratorUITests
+//  FacettUITestsLaunchTests.swift
+//  FacettUITests
 //
 //  Created by Kevin Matzen on 1/12/25.
 //
 
 import XCTest
 
-final class GoProConfiguratorUITestsLaunchTests: XCTestCase {
+final class FacettUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

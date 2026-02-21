@@ -1,6 +1,6 @@
 //
 //  SpeechManager.swift
-//  GoProConfigurator
+//  Facett
 //
 //  Created by Kevin Matzen on 5/12/25.
 //

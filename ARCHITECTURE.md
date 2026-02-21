@@ -36,10 +36,10 @@ The GoPro Configurator (Facett) is built using **SwiftUI** with **MVVM (Model-Vi
 
 ### Core Components
 
-#### 1. **App Entry Point** (`GoProConfiguratorApp.swift`)
+#### 1. **App Entry Point** (`FacettApp.swift`)
 - **Purpose**: Application lifecycle management and dependency injection
 - **Key Responsibilities**:
-  - Initialize core managers (BLE, Config, CameraSet)
+  - Initialize core managers (BLE, Config, CameraGroup)
   - Handle app state transitions (active/inactive/background)
   - Manage idle timer for continuous BLE operations
   - Initialize crash reporting system
@@ -77,12 +77,12 @@ The app uses SwiftUI's `@StateObject` and `@ObservedObject` for dependency injec
 struct FacettApp: App {
     @StateObject var bleManager = BLEManager()
     @StateObject var configManager = ConfigManager()
-    @StateObject var cameraSetManager: CameraSetManager
+    @StateObject var cameraGroupManager: CameraGroupManager
 
     init() {
         let configManager = ConfigManager()
         self._configManager = StateObject(wrappedValue: configManager)
-        self._cameraSetManager = StateObject(wrappedValue: CameraSetManager(configManager: configManager))
+        self._cameraGroupManager = StateObject(wrappedValue: CameraGroupManager(configManager: configManager))
     }
 }
 ```
@@ -547,7 +547,7 @@ The app implements a comprehensive testing strategy with multiple layers:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 1. **Unit Tests** (`GoProConfiguratorTests/`)
+### 1. **Unit Tests** (`FacettTests/`)
 
 #### **Parser Tests** (`ParserTests.swift`)
 - **Purpose**: Test BLE packet parsing logic
@@ -573,7 +573,7 @@ func testInvalidPacket() {
 - **Purpose**: Test configuration and settings management
 - **Coverage**:
   - ConfigManager CRUD operations
-  - CameraSetManager operations
+  - CameraGroupManager operations
   - SettingsValidator logic
   - Data persistence
 
@@ -589,7 +589,7 @@ func testCreateConfiguration() {
 }
 ```
 
-### 2. **UI Tests** (`GoProConfiguratorUITests/`)
+### 2. **UI Tests** (`FacettUITests/`)
 
 #### **Workflow Tests** (`UIWorkflowTests.swift`)
 - **Purpose**: Test complete user workflows
@@ -682,7 +682,7 @@ struct CameraConfig: Identifiable, Codable {
 ### 3. **Camera Group Model**
 
 ```swift
-struct CameraSet: Identifiable, Codable {
+struct CameraGroup: Identifiable, Codable {
     let id: UUID
     var name: String
     var cameraIds: Set<UUID>
@@ -722,9 +722,9 @@ ContentView
 │   ├── CameraStatusRow
 │   ├── BatteryIndicator
 │   └── SettingsMismatchIndicator
-├── CameraSetViews
+├── CameraGroupViews
 │   ├── CameraListView
-│   ├── CameraSetRow
+│   ├── CameraGroupRow
 │   └── CameraDetailView
 ├── ConfigManagementView
 │   ├── ConfigList
@@ -732,7 +732,7 @@ ContentView
 │   └── SettingsValidator
 └── ManagementButtons
     ├── ConnectAllButton
-    ├── CameraSetsButton
+    ├── CameraGroupsButton
     ├── ConfigurationsButton
     └── BugReportButton
 ```
@@ -755,7 +755,7 @@ ContentView
   - Settings mismatch detection
   - Quick actions
 
-#### 3. **CameraSetViews** (`CameraSetViews.swift`)
+#### 3. **CameraGroupViews** (`CameraGroupViews.swift`)
 - **Purpose**: Camera group creation and management
 - **Key Features**:
   - Drag-and-drop camera assignment

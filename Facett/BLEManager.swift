@@ -466,7 +466,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var timeoutCheckTimer: Timer?
     private var settingsQueryCounter = 0 // Counter to reduce settings query frequency
 
-    private let bleCommandQueue = DispatchQueue(label: "com.matzen.goproConfigurator.bleCommandQueue")
+    private let bleCommandQueue = DispatchQueue(label: "com.matzen.facett.bleCommandQueue")
 
     // Command queue management
     private var commandQueues: [UUID: [QueuedCommand]] = [:]
@@ -644,7 +644,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     ///   - separator: A string to insert between each item. Default is a single space.
     ///   - terminator: The string to print after all items have been logged. Default is a newline.
     // MARK: - Logging (Deprecated - Use ErrorHandler instead)
-    @available(*, deprecated, message: "Use ErrorHandler instead for standardized logging")
     func log(
         _ items: Any...,
         separator: String = " ",
