@@ -1,0 +1,405 @@
+import SwiftUI
+
+// MARK: - ContentView
+struct ContentView: View {
+    @ObservedObject var bleManager: BLEManager
+    @ObservedObject var cameraGroupManager: CameraGroupManager
+    @ObservedObject var configManager: ConfigManager
+    @State private var showQr = false
+    @State private var selectedDevice: IdentifiableUUID? = nil
+    @State var enterKeyHandler = EnterKeyHandler()
+    @StateObject private var speechManager = SpeechManager()
+    @State private var recordAll: Bool = false
+    @State private var showingCameraGroupManagement = false
+    @State private var showingConfigManagement = false
+    @State private var showingVoiceNotificationSettings = false
+    @State private var showingBugReportForm = false
+    @State private var autoSyncTimer: Timer?
+    @State private var syncRotation: Double = 0
+    @State private var showModeMismatchModal = false
+    @State private var modeMismatchCameras: [GoPro] = []
+
+    // MARK: - Helper Functions
+
+    private func checkAndNotifyModeMismatches() {
+        let mismatchedCameras = checkForModeMismatches()
+
+        if !mismatchedCameras.isEmpty && !showModeMismatchModal {
+            ErrorHandler.info(
+                "Mode Mismatch Detected - Showing Modal",
+                context: [
+                    "mismatched_cameras": mismatchedCameras.map { camera in
+                        CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
+                    } as Any
+                ]
+            )
+            modeMismatchCameras = mismatchedCameras
+            showModeMismatchModal = true
+        }
+    }
+
+    private func checkForModeMismatches() -> [GoPro] {
+        let camerasToCheck: [GoPro]
+
+        if let activeGroup = cameraGroupManager.activeGroup {
+            camerasToCheck = activeGroup.cameraSerials.compactMap { serial in
+                guard let uuid = CameraSerialNumberManager.shared.getUUID(forSerial: serial) else { return nil }
+                return bleManager.connectedGoPros[uuid]
+            }
+        } else {
+            camerasToCheck = Array(bleManager.connectedGoPros.values)
+        }
+
+        // Debug logging
+        ErrorHandler.info(
+            "Mode Mismatch Check Debug",
+            context: [
+                "total_cameras_checked": camerasToCheck.count,
+                "camera_details": camerasToCheck.map { camera in
+                    let name = CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
+                    return "\(name): mode=\(camera.settings.mode), encoding=\(camera.status.isEncoding ?? false)"
+                }
+            ]
+        )
+
+        let mismatchedCameras = camerasToCheck.filter { camera in
+            // Skip mode mismatch checks for recording cameras to avoid false positives
+            if camera.status.isEncoding == true {
+                return false
+            }
+
+            // Check if camera is in video mode (required for recording)
+            // Mode 12 = Video, Mode 17 = Photo, Mode 19 = Multishot (Burst Photo)
+            return camera.settings.mode != 12
+        }
+
+        ErrorHandler.info(
+            "Mode Mismatch Check Results",
+            context: [
+                "mismatched_count": mismatchedCameras.count,
+                "mismatched_cameras": mismatchedCameras.map { camera in
+                    let name = CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
+                    return "\(name): mode \(camera.settings.mode)"
+                }
+            ]
+        )
+
+        return mismatchedCameras
+    }
+
+    private func handleRecordingAction() {
+        let mismatchedCameras = checkForModeMismatches()
+
+        // Debug logging
+        ErrorHandler.info(
+            "Recording Action Debug",
+            context: [
+                "mismatched_cameras_count": mismatchedCameras.count,
+                "camera_modes": mismatchedCameras.map { camera in
+                    let name = CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
+                    return "\(name): mode \(camera.settings.mode)"
+                }
+            ]
+        )
+
+        if !mismatchedCameras.isEmpty {
+            ErrorHandler.info(
+                "Showing Mode Mismatch Modal",
+                context: [
+                    "mismatched_cameras": mismatchedCameras.map { camera in
+                        CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
+                    }
+                ]
+            )
+            modeMismatchCameras = mismatchedCameras
+            showModeMismatchModal = true
+        } else {
+            ErrorHandler.info(
+                "No Mode Mismatches - Starting Recording",
+                context: ["action": "start_recording"]
+            )
+            // No mode mismatches, proceed with recording
+            if let activeGroup = cameraGroupManager.activeGroup {
+                bleManager.startRecordingForCamerasInSet(activeGroup.cameraSerials)
+            } else {
+                bleManager.startRecordingAllDevices()
+            }
+        }
+    }
+
+    private func createModeMismatchMessage() -> String {
+        let cameraNames = modeMismatchCameras.map { camera in
+            CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
+        }.joined(separator: ", ")
+
+        return "The following cameras are not in video mode and need to be manually switched:\n\n\(cameraNames)\n\nPlease use the camera's physical controls to switch them to video mode, then try recording again."
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let isLandscape = geometry.size.width > geometry.size.height
+
+            NavigationStack {
+                ZStack {
+                    VStack(spacing: 0) {
+                        // Recording Controls at the very top
+                        RecordingControlsView(
+                            bleManager: bleManager,
+                            cameraGroupManager: cameraGroupManager,
+                            speechManager: speechManager,
+                            configManager: configManager,
+                            handleRecordingAction: handleRecordingAction
+                        )
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+
+                        if isLandscape {
+                            HStack {
+                                ScrollView {
+                                    VStack {
+                                        VStack(spacing: 20) {
+                                            deviceListSection
+                                        }
+                                    }
+                                    .padding(.horizontal, 2) // Apply 2 points of padding to leading and trailing sides
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .frame(width: geometry.size.width * 0.55) // Left column (wider)
+
+                                ScrollView {
+                                    VStack {
+                                        VStack(spacing: 20) {
+                                            mainContentSection
+                                        }
+                                    }
+                                    .padding(.horizontal, 2) // Apply 2 points of padding to leading and trailing sides
+                                    .frame(alignment: .trailing)
+                                }
+                                .frame(width: geometry.size.width * 0.45) // Right column (narrower)
+                            }
+                        } else {
+                            ScrollView {
+                                VStack {
+                                    VStack(spacing: 20) {
+                                        deviceListSection
+                                        mainContentSection
+                                    }
+                                }
+                                .padding()
+                            }
+                        }
+                    }
+
+                    EnterKeyHandlerView(enterKeyHandler: enterKeyHandler)
+                        .frame(width: 0, height: 0)
+                }
+                .onAppear {
+                    QRCodeResources.initialize() // Trigger proactive initialization
+
+                    // Setup callback for immediate sync when camera status is updated
+                    bleManager.onCameraStatusUpdated = { [weak configManager, weak bleManager, weak cameraGroupManager] cameraId in
+                        guard let configManager = configManager,
+                              let bleManager = bleManager,
+                              let cameraGroupManager = cameraGroupManager else { return }
+
+                        ErrorHandler.debug("🔍 Camera '\(cameraId)' received initial status - triggering immediate sync check")
+                        ErrorHandler.info(
+                            "Camera Status Updated - Checking Mode Mismatches",
+                            context: ["camera_id": cameraId.uuidString]
+                        )
+                        configManager.checkAndTriggerAutoSync(bleManager: bleManager, cameraGroupManager: cameraGroupManager)
+
+                        // Check for mode mismatches and show modal if needed
+                        DispatchQueue.main.async {
+                            self.checkAndNotifyModeMismatches()
+                        }
+                    }
+
+                    // Setup auto-sync timer
+                    autoSyncTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
+                        configManager.checkAndTriggerAutoSync(bleManager: bleManager, cameraGroupManager: cameraGroupManager)
+
+                        // Also check for mode mismatches periodically
+                        DispatchQueue.main.async {
+                            self.checkAndNotifyModeMismatches()
+                        }
+                    }
+
+                    speechManager.onStartCommand = {
+                        ErrorHandler.info("Voice command 'start' detected")
+                        if let activeGroup = cameraGroupManager.activeGroup {
+                            bleManager.startRecordingForCamerasInSet(activeGroup.cameraSerials)
+                        } else {
+                            bleManager.startRecordingAllDevices()
+                        }
+                        recordAll = true
+                    }
+
+                    speechManager.onStopCommand = {
+                        ErrorHandler.info("Voice command 'stop' detected")
+                        if let activeGroup = cameraGroupManager.activeGroup {
+                            bleManager.stopRecordingForCamerasInSet(activeGroup.cameraSerials)
+                        } else {
+                            bleManager.stopRecordingAllDevices()
+                        }
+                        recordAll = false
+                    }
+
+                    enterKeyHandler.enterKeyAction = {
+                        ErrorHandler.info("Enter key detected!")
+                        if recordAll {
+                            ErrorHandler.info("Stopping recording on all devices")
+                            if let activeGroup = cameraGroupManager.activeGroup {
+                                bleManager.stopRecordingForCamerasInSet(activeGroup.cameraSerials)
+                            } else {
+                                bleManager.stopRecordingAllDevices()
+                            }
+                            recordAll = false
+                        } else {
+                            ErrorHandler.info("Starting recording on all devices")
+                            if let activeGroup = cameraGroupManager.activeGroup {
+                                bleManager.startRecordingForCamerasInSet(activeGroup.cameraSerials)
+                            } else {
+                                bleManager.startRecordingAllDevices()
+                            }
+                            recordAll = true
+                        }
+                    }
+                }
+                .onDisappear {
+                    enterKeyHandler.enterKeyAction = nil
+                    autoSyncTimer?.invalidate()
+                    autoSyncTimer = nil
+                    bleManager.onCameraStatusUpdated = nil
+                }
+            }
+        }
+    }
+
+    private var mainContentSection: some View {
+        VStack(spacing: 20) {
+            // Active Group Summary (only show when there's an active group)
+            if let activeGroup = cameraGroupManager.activeGroup {
+                ActiveGroupSummaryView(
+                    set: activeGroup,
+                    cameraGroupManager: cameraGroupManager,
+                    bleManager: bleManager,
+                    configManager: configManager
+                )
+            }
+
+            // Management Buttons - Modern Design
+            ManagementButtonsView(
+                cameraGroupManager: cameraGroupManager,
+                configManager: configManager,
+                showingCameraGroupManagement: $showingCameraGroupManagement,
+                showingConfigManagement: $showingConfigManagement,
+                showingVoiceNotificationSettings: $showingVoiceNotificationSettings,
+                showingBugReportForm: $showingBugReportForm
+            )
+
+            // QR Code Section - Prominent placement
+            QRCodeSection(showQr: $showQr, configManager: configManager)
+
+            // Other action buttons and controls
+            ActionButtonsView(bleManager: bleManager, cameraGroupManager: cameraGroupManager, speechManager: speechManager)
+
+            Spacer()
+        }
+    }
+
+    private var deviceListSection: some View {
+        VStack(spacing: 16) {
+            // Device Sections
+            if cameraGroupManager.cameraGroups.isEmpty {
+                // No camera groups exist - show helpful message
+                VStack(spacing: 8) {
+                    Image(systemName: "camera.on.rectangle")
+                        .font(.system(size: 32))
+                        .foregroundColor(.gray)
+
+                    Text("No Camera Groups")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    Text("Create a camera group to organize your GoPro cameras")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    Button("Create Camera Group") {
+                        showingCameraGroupManagement = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(8)
+            } else if cameraGroupManager.activeGroup == nil {
+                // Auto-select the first camera group if none is active
+                VStack(spacing: 8) {
+                    Text("No Active Camera Group")
+                        .font(.headline)
+                        .foregroundColor(.orange)
+
+                    Button("Select \(cameraGroupManager.cameraGroups.first?.name ?? "Camera Group")") {
+                        if let firstGroup = cameraGroupManager.cameraGroups.first {
+                            cameraGroupManager.setActiveGroup(firstGroup)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(8)
+                .onAppear {
+                    // Auto-select immediately if no active group
+                    if cameraGroupManager.activeGroupId == nil {
+                        if let firstGroup = cameraGroupManager.cameraGroups.first {
+                            // Use async to avoid blocking the UI
+                            DispatchQueue.main.async {
+                                cameraGroupManager.setActiveGroup(firstGroup)
+                            }
+                        }
+                    }
+                }
+            }
+            // If there's an active set, no additional device section is needed
+            // The active set information is already shown in the unified header
+
+            // Removed discovered/connected devices sections to reduce clutter
+            // Device details are now shown in the main content area via ActiveGroupSummaryView
+        }
+        .sheet(isPresented: $showingCameraGroupManagement) {
+            CameraGroupManagementView(
+                cameraGroupManager: cameraGroupManager,
+                bleManager: bleManager
+            )
+        }
+        .sheet(isPresented: $showingConfigManagement) {
+            ConfigManagementView(
+                configManager: configManager,
+                cameraGroupManager: cameraGroupManager,
+                bleManager: bleManager
+            )
+        }
+        .sheet(isPresented: $showingVoiceNotificationSettings) {
+            VoiceNotificationSettingsView()
+        }
+        .sheet(isPresented: $showingBugReportForm) {
+            BugReportView()
+        }
+        .alert("Camera Mode Mismatch", isPresented: $showModeMismatchModal) {
+            Button("OK") {
+                showModeMismatchModal = false
+            }
+        } message: {
+            Text(createModeMismatchMessage())
+        }
+    }
+}
+
+// MARK: - IdentifiableUUID
+struct IdentifiableUUID: Identifiable {
+    let id: UUID
+}
