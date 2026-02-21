@@ -39,7 +39,6 @@ class BLEResponseHandler {
             for response in responses {
                 switch response {
                 case .batteryLevel(let level):
-                    let wasCharging = gopro.status.isUSBConnected
                     gopro.status.batteryLevel = level
                     // According to Open GoPro BLE API, battery level 4 indicates charging
                     let isNowCharging = (level == 4)
@@ -153,6 +152,7 @@ class BLEResponseHandler {
                     gopro.status.cameraMode = mode
                 case .videoMode(let mode):
                     gopro.status.videoMode = mode
+                    gopro.updateSetting(\.mode, value: mode)
                 case .photoMode(let mode):
                     gopro.status.photoMode = mode
                 case .multiShotMode(let mode):
@@ -161,10 +161,13 @@ class BLEResponseHandler {
                     gopro.status.flatMode = mode
                 case .videoProtune(let protune):
                     gopro.status.videoProtune = protune
+                    gopro.updateSetting(\.protuneEnabled, value: protune)
                 case .videoStabilization(let stabilization):
                     gopro.status.videoStabilization = stabilization
+                    gopro.updateSetting(\.hypersmooth, value: stabilization)
                 case .videoFieldOfView(let fov):
                     gopro.status.videoFieldOfView = fov
+                    gopro.updateSetting(\.videoLens, value: fov)
                 case .turboMode(let turbo):
                     gopro.status.turboMode = turbo
 
@@ -199,36 +202,6 @@ class BLEResponseHandler {
                     gopro.updateSetting(\.screenSaverFront, value: screenSaver)
                 case .screenSaverRear(let screenSaver):
                     gopro.updateSetting(\.screenSaverRear, value: screenSaver)
-                case .videoStabilization(let stabilization):
-                    gopro.updateSetting(\.hypersmooth, value: stabilization)
-                case .videoFieldOfView(let fov):
-                    gopro.updateSetting(\.videoLens, value: fov)
-                case .videoProtune(let protune):
-                    gopro.updateSetting(\.protuneEnabled, value: protune)
-                case .videoMode(let mode):
-                    gopro.updateSetting(\.mode, value: mode)
-                case .photoMode(let mode):
-                    gopro.status.photoMode = mode
-                case .multiShotMode(let mode):
-                    gopro.status.multiShotMode = mode
-                case .flatMode(let mode):
-                    gopro.status.flatMode = mode
-                case .turboMode(let turbo):
-                    gopro.status.turboMode = turbo
-                case .wifiBars(let bars):
-                    gopro.status.wifiBars = bars
-                case .cameraMode(let mode):
-                    gopro.status.cameraMode = mode
-                case .wifiSSID(let ssid):
-                    gopro.status.wifiSSID = ssid
-                case .apSSID(let ssid):
-                    gopro.status.apSSID = ssid
-                case .apState(let state):
-                    gopro.status.apState = state
-                case .wifiPassword(let password):
-                    gopro.status.wifiPassword = password
-                case .apPassword(let password):
-                    gopro.status.apPassword = password
                 case .defaultPreset(let defaultPreset):
                     gopro.updateSetting(\.defaultPreset, value: defaultPreset)
                 case .frontLcdMode(let frontLcdMode):

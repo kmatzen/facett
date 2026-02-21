@@ -148,7 +148,7 @@ class BLEModeManager {
 
     /// Get mode mismatch information for UI display
     func getModeMismatchInfo() -> (mismatchedCameras: [GoPro], targetMode: CameraMode) {
-        guard let bleManager = bleManager else { return ([], .unknown) }
+        guard bleManager != nil else { return ([], .unknown) }
 
         // For recording operations, we want all cameras in video mode
         let targetMode: CameraMode = .video

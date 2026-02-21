@@ -79,7 +79,7 @@ class BLEConnectionHandler {
     // MARK: - Service Discovery
 
     func handleServiceDiscovery(_ peripheral: CBPeripheral, error: Error?) {
-        guard let bleManager = bleManager else { return }
+        guard bleManager != nil else { return }
 
         let uuid = peripheral.identifier
 
