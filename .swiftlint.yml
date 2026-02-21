@@ -1,0 +1,45 @@
+excluded:
+  - Facett/LaunchScreen.storyboard
+
+line_length:
+  warning: 300
+  error: 400
+
+file_length:
+  warning: 2500
+  error: 3500
+
+type_body_length:
+  warning: 1700
+  error: 2500
+
+function_body_length:
+  warning: 300
+  error: 500
+
+cyclomatic_complexity:
+  warning: 120
+  error: 150
+
+large_tuple:
+  warning: 4
+  error: 6
+
+identifier_name:
+  min_length: 1
+
+disabled_rules:
+  - duplicate_conditions
+  - for_where
+  - implicit_optional_initialization
+  - multiple_closures_with_trailing_closure
+  - nesting
+  - opening_brace
+  - orphaned_doc_comment
+  - redundant_discardable_let
+  - static_over_final_class
+  - trailing_semicolon
+  - unneeded_synthesized_initializer
+  - unused_closure_parameter
+  - unused_optional_binding
+  - vertical_whitespace
