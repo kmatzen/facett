@@ -1,0 +1,40 @@
+<svg width="500" height="500" viewBox="0 0 500 500"
+     xmlns="http://www.w3.org/2000/svg"
+     style="border-radius:50px; overflow:hidden;">
+  <!-- Blue gradient background -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#4A90E2" />
+      <stop offset="100%" stop-color="#007AFF" />
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="500" height="500" fill="url(#bgGradient)" />
+
+  <!-- Camera #1 -->
+  <g transform="translate(80, 80)">
+    <!-- Camera Body -->
+    <rect x="0" y="0" width="120" height="80" rx="10" ry="10" fill="#FFFFFF"/>
+    <!-- Lens Outline -->
+    <circle cx="60" cy="40" r="20" fill="none" stroke="#4A90E2" stroke-width="5"/>
+    <!-- Inner Lens (optional highlight) -->
+    <circle cx="60" cy="40" r="10" fill="#FFFFFF" opacity="0.2" />
+    <!-- Top Flash/Indicator -->
+    <rect x="10" y="-10" width="25" height="10" rx="2" ry="2" fill="#FFFFFF" />
+  </g>
+
+  <!-- Camera #2 -->
+  <g transform="translate(180, 200) rotate(-10, 60, 40)">
+    <rect x="0" y="0" width="120" height="80" rx="10" ry="10" fill="#FFFFFF"/>
+    <circle cx="60" cy="40" r="20" fill="none" stroke="#4A90E2" stroke-width="5"/>
+    <circle cx="60" cy="40" r="10" fill="#FFFFFF" opacity="0.2" />
+    <rect x="10" y="-10" width="25" height="10" rx="2" ry="2" fill="#FFFFFF" />
+  </g>
+
+  <!-- Camera #3 -->
+  <g transform="translate(280, 330) rotate(15, 60, 40)">
+    <rect x="0" y="0" width="120" height="80" rx="10" ry="10" fill="#FFFFFF"/>
+    <circle cx="60" cy="40" r="20" fill="none" stroke="#4A90E2" stroke-width="5"/>
+    <circle cx="60" cy="40" r="10" fill="#FFFFFF" opacity="0.2" />
+    <rect x="10" y="-10" width="25" height="10" rx="2" ry="2" fill="#FFFFFF" />
+  </g>
+</svg>
