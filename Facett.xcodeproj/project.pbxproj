@@ -12,25 +12,25 @@
 			containerPortal = D8C4C1E92D345CE50093AB00 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = D8C4C1F02D345CE50093AB00;
-			remoteInfo = GoProConfigurator;
+			remoteInfo = Facett;
 		};
 		D8C4C20C2D345CE90093AB00 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = D8C4C1E92D345CE50093AB00 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = D8C4C1F02D345CE50093AB00;
-			remoteInfo = GoProConfigurator;
+			remoteInfo = Facett;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		D8C4C1F12D345CE50093AB00 /* Facett.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Facett.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		D8C4C2012D345CE90093AB00 /* GoProConfiguratorTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GoProConfiguratorTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		D8C4C20B2D345CE90093AB00 /* GoProConfiguratorUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GoProConfiguratorUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D8C4C2012D345CE90093AB00 /* FacettTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FacettTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D8C4C20B2D345CE90093AB00 /* FacettUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FacettUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		D8C4C2332D34630A0093AB00 /* Exceptions for "GoProConfigurator" folder in "Facett" target */ = {
+		D8C4C2332D34630A0093AB00 /* Exceptions for "Facett" folder in "Facett" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -40,22 +40,22 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		D8C4C1F32D345CE50093AB00 /* GoProConfigurator */ = {
+		D8C4C1F32D345CE50093AB00 /* Facett */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				D8C4C2332D34630A0093AB00 /* Exceptions for "GoProConfigurator" folder in "Facett" target */,
+				D8C4C2332D34630A0093AB00 /* Exceptions for "Facett" folder in "Facett" target */,
 			);
-			path = GoProConfigurator;
+			path = Facett;
 			sourceTree = "<group>";
 		};
-		D8C4C2042D345CE90093AB00 /* GoProConfiguratorTests */ = {
+		D8C4C2042D345CE90093AB00 /* FacettTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = GoProConfiguratorTests;
+			path = FacettTests;
 			sourceTree = "<group>";
 		};
-		D8C4C20E2D345CE90093AB00 /* GoProConfiguratorUITests */ = {
+		D8C4C20E2D345CE90093AB00 /* FacettUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = GoProConfiguratorUITests;
+			path = FacettUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -88,9 +88,9 @@
 		D8C4C1E82D345CE50093AB00 = {
 			isa = PBXGroup;
 			children = (
-				D8C4C1F32D345CE50093AB00 /* GoProConfigurator */,
-				D8C4C2042D345CE90093AB00 /* GoProConfiguratorTests */,
-				D8C4C20E2D345CE90093AB00 /* GoProConfiguratorUITests */,
+				D8C4C1F32D345CE50093AB00 /* Facett */,
+				D8C4C2042D345CE90093AB00 /* FacettTests */,
+				D8C4C20E2D345CE90093AB00 /* FacettUITests */,
 				D8C4C1F22D345CE50093AB00 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -99,8 +99,8 @@
 			isa = PBXGroup;
 			children = (
 				D8C4C1F12D345CE50093AB00 /* Facett.app */,
-				D8C4C2012D345CE90093AB00 /* GoProConfiguratorTests.xctest */,
-				D8C4C20B2D345CE90093AB00 /* GoProConfiguratorUITests.xctest */,
+				D8C4C2012D345CE90093AB00 /* FacettTests.xctest */,
+				D8C4C20B2D345CE90093AB00 /* FacettUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -121,18 +121,18 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				D8C4C1F32D345CE50093AB00 /* GoProConfigurator */,
+				D8C4C1F32D345CE50093AB00 /* Facett */,
 			);
 			name = Facett;
 			packageProductDependencies = (
 			);
-			productName = GoProConfigurator;
+			productName = Facett;
 			productReference = D8C4C1F12D345CE50093AB00 /* Facett.app */;
 			productType = "com.apple.product-type.application";
 		};
-		D8C4C2002D345CE90093AB00 /* GoProConfiguratorTests */ = {
+		D8C4C2002D345CE90093AB00 /* FacettTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = D8C4C2182D345CE90093AB00 /* Build configuration list for PBXNativeTarget "GoProConfiguratorTests" */;
+			buildConfigurationList = D8C4C2182D345CE90093AB00 /* Build configuration list for PBXNativeTarget "FacettTests" */;
 			buildPhases = (
 				D8C4C1FD2D345CE90093AB00 /* Sources */,
 				D8C4C1FE2D345CE90093AB00 /* Frameworks */,
@@ -144,18 +144,18 @@
 				D8C4C2032D345CE90093AB00 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				D8C4C2042D345CE90093AB00 /* GoProConfiguratorTests */,
+				D8C4C2042D345CE90093AB00 /* FacettTests */,
 			);
-			name = GoProConfiguratorTests;
+			name = FacettTests;
 			packageProductDependencies = (
 			);
-			productName = GoProConfiguratorTests;
-			productReference = D8C4C2012D345CE90093AB00 /* GoProConfiguratorTests.xctest */;
+			productName = FacettTests;
+			productReference = D8C4C2012D345CE90093AB00 /* FacettTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		D8C4C20A2D345CE90093AB00 /* GoProConfiguratorUITests */ = {
+		D8C4C20A2D345CE90093AB00 /* FacettUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = D8C4C21B2D345CE90093AB00 /* Build configuration list for PBXNativeTarget "GoProConfiguratorUITests" */;
+			buildConfigurationList = D8C4C21B2D345CE90093AB00 /* Build configuration list for PBXNativeTarget "FacettUITests" */;
 			buildPhases = (
 				D8C4C2072D345CE90093AB00 /* Sources */,
 				D8C4C2082D345CE90093AB00 /* Frameworks */,
@@ -167,13 +167,13 @@
 				D8C4C20D2D345CE90093AB00 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				D8C4C20E2D345CE90093AB00 /* GoProConfiguratorUITests */,
+				D8C4C20E2D345CE90093AB00 /* FacettUITests */,
 			);
-			name = GoProConfiguratorUITests;
+			name = FacettUITests;
 			packageProductDependencies = (
 			);
-			productName = GoProConfiguratorUITests;
-			productReference = D8C4C20B2D345CE90093AB00 /* GoProConfiguratorUITests.xctest */;
+			productName = FacettUITests;
+			productReference = D8C4C20B2D345CE90093AB00 /* FacettUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -199,7 +199,7 @@
 					};
 				};
 			};
-			buildConfigurationList = D8C4C1EC2D345CE50093AB00 /* Build configuration list for PBXProject "GoProConfigurator" */;
+			buildConfigurationList = D8C4C1EC2D345CE50093AB00 /* Build configuration list for PBXProject "Facett" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -214,8 +214,8 @@
 			projectRoot = "";
 			targets = (
 				D8C4C1F02D345CE50093AB00 /* Facett */,
-				D8C4C2002D345CE90093AB00 /* GoProConfiguratorTests */,
-				D8C4C20A2D345CE90093AB00 /* GoProConfiguratorUITests */,
+				D8C4C2002D345CE90093AB00 /* FacettTests */,
+				D8C4C20A2D345CE90093AB00 /* FacettUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -408,11 +408,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"GoProConfigurator/Preview Content\"";
-				DEVELOPMENT_TEAM = LH3PFZAX3C;
+				DEVELOPMENT_ASSET_PATHS = "\"Facett/Preview Content\"";
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = GoProConfigurator/Info.plist;
+				INFOPLIST_FILE = Facett/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Bluetooth is used to discover and connect to your GoPro cameras for remote control and settings management.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Bluetooth is used to discover and connect to your GoPro cameras for remote control and settings management.";
@@ -430,7 +430,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.adobe.matzen.facett;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matzen.facett;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -447,11 +447,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"GoProConfigurator/Preview Content\"";
-				DEVELOPMENT_TEAM = LH3PFZAX3C;
+				DEVELOPMENT_ASSET_PATHS = "\"Facett/Preview Content\"";
+				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = GoProConfigurator/Info.plist;
+				INFOPLIST_FILE = Facett/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Bluetooth is used to discover and connect to your GoPro cameras for remote control and settings management.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Bluetooth is used to discover and connect to your GoPro cameras for remote control and settings management.";
@@ -469,7 +469,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.adobe.matzen.facett;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matzen.facett;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
@@ -485,11 +485,11 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = R5326Y7EZ4;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = matzen.GoProConfiguratorTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matzen.FacettTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -504,11 +504,11 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = R5326Y7EZ4;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = matzen.GoProConfiguratorTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matzen.FacettTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -522,15 +522,15 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = R5326Y7EZ4;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = matzen.GoProConfiguratorUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matzen.FacettUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = GoProConfigurator;
+				TEST_TARGET_NAME = Facett;
 			};
 			name = Debug;
 		};
@@ -539,22 +539,22 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = R5326Y7EZ4;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = matzen.GoProConfiguratorUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.matzen.FacettUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = GoProConfigurator;
+				TEST_TARGET_NAME = Facett;
 			};
 			name = Release;
 		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		D8C4C1EC2D345CE50093AB00 /* Build configuration list for PBXProject "GoProConfigurator" */ = {
+		D8C4C1EC2D345CE50093AB00 /* Build configuration list for PBXProject "Facett" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D8C4C2132D345CE90093AB00 /* Debug */,
@@ -572,7 +572,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D8C4C2182D345CE90093AB00 /* Build configuration list for PBXNativeTarget "GoProConfiguratorTests" */ = {
+		D8C4C2182D345CE90093AB00 /* Build configuration list for PBXNativeTarget "FacettTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D8C4C2192D345CE90093AB00 /* Debug */,
@@ -581,7 +581,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D8C4C21B2D345CE90093AB00 /* Build configuration list for PBXNativeTarget "GoProConfiguratorUITests" */ = {
+		D8C4C21B2D345CE90093AB00 /* Build configuration list for PBXNativeTarget "FacettUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D8C4C21C2D345CE90093AB00 /* Debug */,

@@ -26,7 +26,7 @@ Facett is a BLE-dependent iOS app that requires testing across multiple environm
 ## Testing Approaches
 
 ### 1. Unit Tests (No Hardware Required)
-**Location**: `GoProConfiguratorTests/ParserTests.swift`, `GoProConfiguratorTests/SettingsTests.swift`
+**Location**: `FacettTests/ParserTests.swift`, `FacettTests/SettingsTests.swift`
 
 **What they test**:
 - BLE packet parsing logic
@@ -50,7 +50,7 @@ func testSinglePacketResponse() {
 ```
 
 ### 2. UI Tests (Simulator)
-**Location**: `GoProConfiguratorUITests/UIWorkflowTests.swift`
+**Location**: `FacettUITests/UIWorkflowTests.swift`
 
 **What they test**:
 - User interface interactions
@@ -74,7 +74,7 @@ func testConfigurationManagementWorkflow() {
 ```
 
 ### 3. Integration Tests (Mocked BLE)
-**Location**: `GoProConfiguratorTests/BLETestStrategy.swift`
+**Location**: `FacettTests/BLETestStrategy.swift`
 
 **What they test**:
 - Complete workflows with mocked BLE
@@ -89,7 +89,7 @@ func testConfigurationManagementWorkflow() {
 - Good coverage
 
 ### 4. Manual Tests (Real Devices)
-**Location**: `GoProConfiguratorTests/ManualTest.swift`
+**Location**: `FacettTests/ManualTest.swift`
 
 **What they test**:
 - Real GoPro camera interactions
@@ -186,35 +186,35 @@ The `run_tests.sh` script provides an easy way to run different types of tests:
 #### Unit Tests
 ```bash
 xcodebuild test \
-    -project GoProConfigurator.xcodeproj \
-    -scheme GPControl \
+    -project Facett.xcodeproj \
+    -scheme Facett \
     -destination "platform=iOS Simulator,name=iPhone 16" \
-    -only-testing:GoProConfiguratorTests/ParserTests \
-    -only-testing:GoProConfiguratorTests/SettingsTests
+    -only-testing:FacettTests/ParserTests \
+    -only-testing:FacettTests/SettingsTests
 ```
 
 #### UI Tests
 ```bash
 xcodebuild test \
-    -project GoProConfigurator.xcodeproj \
-    -scheme GPControl \
+    -project Facett.xcodeproj \
+    -scheme Facett \
     -destination "platform=iOS Simulator,name=iPhone 16" \
-    -only-testing:GoProConfiguratorUITests/UIWorkflowTests
+    -only-testing:FacettUITests/UIWorkflowTests
 ```
 
 #### Device Tests
 ```bash
 xcodebuild test \
-    -project GoProConfigurator.xcodeproj \
-    -scheme GPControl \
+    -project Facett.xcodeproj \
+    -scheme Facett \
     -destination "platform=iOS,id=00008130-000578862861401C" \
-    -only-testing:GoProConfiguratorTests/ManualTest
+    -only-testing:FacettTests/ManualTest
 ```
 
 ### Using Xcode
 
 1. **Open the project** in Xcode
-2. **Select the test target** (GoProConfiguratorTests or GoProConfiguratorUITests)
+2. **Select the test target** (FacettTests or FacettUITests)
 3. **Choose a destination** (Simulator or Device)
 4. **Run tests** using Cmd+U or the Test button
 

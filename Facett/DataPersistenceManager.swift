@@ -8,7 +8,7 @@ class DataPersistenceManager {
     private let userDefaults = UserDefaults.standard
     private let fileManager = FileManager.default
     private let documentsDirectory: URL
-    private let logger = Logger(subsystem: "com.adobe.matzen.Facett", category: "DataPersistence")
+    private let logger = Logger(subsystem: "com.matzen.facett", category: "DataPersistence")
 
     // MARK: - Storage Types
 

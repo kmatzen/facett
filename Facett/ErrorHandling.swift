@@ -8,7 +8,7 @@ import CoreBluetooth
 class ErrorHandler {
     static let shared = ErrorHandler()
 
-    private let logger = Logger(subsystem: "com.adobe.matzen.Facett", category: "ErrorHandler")
+    private let logger = Logger(subsystem: "com.matzen.facett", category: "ErrorHandler")
 
     private init() {}
 

@@ -204,16 +204,16 @@ func hasSettingsMismatch(gopro: GoPro, targetSettings: GoProSettings) -> Bool
 
 ---
 
-### CameraSetManager
+### CameraGroupManager
 
-**File**: `CameraSet.swift`
+**File**: `CameraGroup.swift`
 **Purpose**: Manage groups of cameras (camera groups)
 
 #### Properties
 
 ```swift
-class CameraSetManager: ObservableObject {
-    @Published var cameraSets: [CameraSet] = []
+class CameraGroupManager: ObservableObject {
+    @Published var cameraSets: [CameraGroup] = []
     private let configManager: ConfigManager
     private let userDefaults = UserDefaults.standard
 }
@@ -223,37 +223,37 @@ class CameraSetManager: ObservableObject {
 
 ```swift
 // Add a new camera group
-func addCameraSet(name: String, cameraIds: Set<UUID> = [], configId: UUID? = nil)
+func addCameraGroup(name: String, cameraIds: Set<UUID> = [], configId: UUID? = nil)
 
 // Remove a camera group
-func removeCameraSet(_ cameraSet: CameraSet)
+func removeCameraGroup(_ cameraSet: CameraGroup)
 
 // Get camera group by ID
-func getCameraSet(_ id: UUID) -> CameraSet?
+func getCameraGroup(_ id: UUID) -> CameraGroup?
 
 // Add camera to set
-func addCamera(_ cameraId: UUID, to cameraSet: CameraSet)
+func addCamera(_ cameraId: UUID, to cameraSet: CameraGroup)
 
 // Remove camera from set
-func removeCamera(_ cameraId: UUID, from cameraSet: CameraSet)
+func removeCamera(_ cameraId: UUID, from cameraSet: CameraGroup)
 
 // Set active camera group
-func setActiveCameraSet(_ cameraSet: CameraSet)
+func setActiveCameraGroup(_ cameraSet: CameraGroup)
 
 // Get active camera group
 func getActiveCameraGroup() -> CameraGroup?
 
 // Save camera groups to persistent storage
-func saveCameraSets()
+func saveCameraGroups()
 
 // Load camera groups from persistent storage
-func loadCameraSets()
+func loadCameraGroups()
 
 // Get cameras in a group
-func getCamerasInSet(_ cameraSet: CameraSet, from gopros: [GoPro]) -> [GoPro]
+func getCamerasInSet(_ cameraSet: CameraGroup, from gopros: [GoPro]) -> [GoPro]
 
 // Get group status
-func getSetStatus(_ cameraSet: CameraSet, gopros: [GoPro]) -> SetStatus
+func getSetStatus(_ cameraSet: CameraGroup, gopros: [GoPro]) -> SetStatus
 ```
 
 ---
@@ -471,15 +471,15 @@ init(name: String, description: String, isDefault: Bool, from settings: GoProSet
 static func createDefault() -> CameraConfig
 ```
 
-### CameraSet
+### CameraGroup
 
-**File**: `CameraSet.swift`
+**File**: `CameraGroup.swift`
 **Purpose**: Camera group/set model
 
 #### Properties
 
 ```swift
-struct CameraSet: Identifiable, Codable {
+struct CameraGroup: Identifiable, Codable {
     let id: UUID
     var name: String
     var cameraIds: Set<UUID>
@@ -526,10 +526,10 @@ class GoPro: ObservableObject, Identifiable {
 ```swift
 struct ContentView: View {
     @ObservedObject var bleManager: BLEManager
-    @ObservedObject var cameraSetManager: CameraSetManager
+    @ObservedObject var cameraGroupManager: CameraGroupManager
     @ObservedObject var configManager: ConfigManager
 
-    @State private var showingCameraSetManagement = false
+    @State private var showingCameraGroupManagement = false
     @State private var showingConfigManagement = false
     @State private var showingVoiceNotificationSettings = false
     @State private var showingBugReportForm = false
@@ -549,7 +549,7 @@ private func connectAllCameras()
 private func disconnectAllCameras()
 
 // Get active camera group
-private func getActiveCameraSet() -> CameraSet?
+private func getActiveCameraGroup() -> CameraGroup?
 
 // Get cameras in active set
 private func getCamerasInActiveSet() -> [GoPro]
@@ -564,7 +564,7 @@ private func getCamerasInActiveSet() -> [GoPro]
 
 ```swift
 struct ActiveSetSummaryView: View {
-    @ObservedObject var cameraSet: CameraSet
+    @ObservedObject var cameraSet: CameraGroup
     @ObservedObject var configManager: ConfigManager
     let cameras: [GoPro]
 
@@ -595,16 +595,16 @@ private func applyConfigurationToAll()
 private func syncSettings()
 ```
 
-### CameraSetViews
+### CameraGroupViews
 
-**File**: `CameraSetViews.swift`
+**File**: `CameraGroupViews.swift`
 **Purpose**: Camera group creation and management
 
 #### Properties
 
 ```swift
-struct CameraSetViews: View {
-    @ObservedObject var cameraSetManager: CameraSetManager
+struct CameraGroupViews: View {
+    @ObservedObject var cameraGroupManager: CameraGroupManager
     @ObservedObject var configManager: ConfigManager
     let cameras: [GoPro]
 
@@ -621,16 +621,16 @@ struct CameraSetViews: View {
 var body: some View
 
 // Create new camera group
-private func createCameraSet()
+private func createCameraGroup()
 
 // Delete camera group
-private func deleteCameraSet(_ cameraSet: CameraSet)
+private func deleteCameraGroup(_ cameraSet: CameraGroup)
 
 // Add camera to set
-private func addCameraToSet(_ camera: GoPro, set: CameraSet)
+private func addCameraToSet(_ camera: GoPro, set: CameraGroup)
 
 // Remove camera from set
-private func removeCameraFromSet(_ camera: GoPro, set: CameraSet)
+private func removeCameraFromSet(_ camera: GoPro, set: CameraGroup)
 ```
 
 ### ConfigManagementView
@@ -643,7 +643,7 @@ private func removeCameraFromSet(_ camera: GoPro, set: CameraSet)
 ```swift
 struct ConfigManagementView: View {
     @ObservedObject var configManager: ConfigManager
-    @ObservedObject var cameraSetManager: CameraSetManager
+    @ObservedObject var cameraGroupManager: CameraGroupManager
     let cameras: [GoPro]
 
     @State private var showingCreateConfig = false
@@ -753,7 +753,7 @@ private func validateBooleanSetting(_ value: Bool, name: String) throws
 class CrashReporter: NSObject {
     static let shared = CrashReporter()
 
-    private let logger = Logger(subsystem: "com.adobe.matzen.Facett", category: "CrashReporter")
+    private let logger = Logger(subsystem: "com.matzen.facett", category: "CrashReporter")
     private var crashLogs: [CrashLog] = []
     private var bugReports: [BugReport] = []
     private var errorLogs: [ErrorLog] = []
@@ -883,7 +883,7 @@ func notifyLowBattery(_ camera: GoPro)
 
 ### ParserTests
 
-**File**: `GoProConfiguratorTests/ParserTests.swift`
+**File**: `FacettTests/ParserTests.swift`
 **Purpose**: Test BLE packet parsing logic
 
 #### Test Methods
@@ -910,7 +910,7 @@ func testBufferCleanup()
 
 ### SettingsTests
 
-**File**: `GoProConfiguratorTests/SettingsTests.swift`
+**File**: `FacettTests/SettingsTests.swift`
 **Purpose**: Test configuration and settings management
 
 #### Test Methods
@@ -919,8 +919,8 @@ func testBufferCleanup()
 // Test ConfigManager initialization
 func testConfigManagerInitialization()
 
-// Test CameraSetManager initialization
-func testCameraSetManagerInitialization()
+// Test CameraGroupManager initialization
+func testCameraGroupManagerInitialization()
 
 // Test SettingsValidator initialization
 func testSettingsValidatorInitialization()
@@ -932,10 +932,10 @@ func testCreateConfiguration()
 func testDeleteConfiguration()
 
 // Test camera group creation
-func testCreateCameraSet()
+func testCreateCameraGroup()
 
 // Test camera group deletion
-func testDeleteCameraSet()
+func testDeleteCameraGroup()
 
 // Test settings validation
 func testSettingsValidatorWithDefaultSettings()
@@ -943,7 +943,7 @@ func testSettingsValidatorWithDefaultSettings()
 
 ### UIWorkflowTests
 
-**File**: `GoProConfiguratorUITests/UIWorkflowTests.swift`
+**File**: `FacettUITests/UIWorkflowTests.swift`
 **Purpose**: Test complete user workflows
 
 #### Test Methods
@@ -959,7 +959,7 @@ func testCameraConnectionWorkflow()
 func testSettingsManagementWorkflow()
 
 // Test camera group management workflow
-func testCameraSetManagementWorkflow()
+func testCameraGroupManagementWorkflow()
 
 // Test error handling UI
 func testErrorHandlingUI()
@@ -967,7 +967,7 @@ func testErrorHandlingUI()
 
 ### ManualTest
 
-**File**: `GoProConfiguratorTests/ManualTest.swift`
+**File**: `FacettTests/ManualTest.swift`
 **Purpose**: Manual testing with real devices
 
 #### Test Methods
@@ -980,7 +980,7 @@ func testRealGoProConnection()
 func testSettingsSynchronization()
 
 // Test multi-camera setup
-func testMultiCameraSetup()
+func testMultiCameraGroupup()
 
 // Test error recovery
 func testErrorRecovery()
@@ -1083,7 +1083,7 @@ enum ResponseType {
 
 ### CameraStatus
 
-**File**: `CameraSet.swift`
+**File**: `CameraGroup.swift`
 **Purpose**: Define camera status states
 
 ```swift

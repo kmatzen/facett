@@ -1,6 +1,6 @@
 //
 //  EnterKeyHandler.swift
-//  GoProConfigurator
+//  Facett
 //
 //  Created by Kevin Matzen on 3/9/25.
 //
