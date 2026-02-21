@@ -466,7 +466,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var timeoutCheckTimer: Timer?
     private var settingsQueryCounter = 0 // Counter to reduce settings query frequency
 
-    private let bleCommandQueue = DispatchQueue(label: "com.matzen.facett.bleCommandQueue")
+    private let bleCommandQueue = DispatchQueue(label: "com.kmatzen.facett.bleCommandQueue")
 
     // Command queue management
     private var commandQueues: [UUID: [QueuedCommand]] = [:]
