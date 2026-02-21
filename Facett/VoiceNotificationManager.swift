@@ -23,24 +23,14 @@ class VoiceNotificationManager: NSObject, ObservableObject {
     // MARK: - Settings Management
 
     private func loadSettings() {
-        do {
-            if let enabled: Bool = try persistenceManager.retrieveSimpleValue(Bool.self, forKey: voiceNotificationsKey) {
-                voiceNotificationsEnabled = enabled
-            }
-        } catch {
-            ErrorHandler.error("Failed to load voice notification settings", error: error)
-            // Fall back to default value
-            voiceNotificationsEnabled = false
+        if let enabled: Bool = persistenceManager.retrieveSimpleValue(Bool.self, forKey: voiceNotificationsKey) {
+            voiceNotificationsEnabled = enabled
         }
     }
 
     func setVoiceNotificationsEnabled(_ enabled: Bool) {
         voiceNotificationsEnabled = enabled
-        do {
-            persistenceManager.storeSimpleValue(enabled, forKey: voiceNotificationsKey)
-        } catch {
-            ErrorHandler.error("Failed to save voice notification settings", error: error)
-        }
+        persistenceManager.storeSimpleValue(enabled, forKey: voiceNotificationsKey)
     }
 
     // MARK: - Voice Notifications
