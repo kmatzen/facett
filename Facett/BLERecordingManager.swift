@@ -74,7 +74,7 @@ class BLERecordingManager {
     /// Stop recording for a specific camera
     func stopRecording(for uuid: UUID) {
         guard let bleManager = bleManager else { return }
-        guard let gopro = bleManager.connectedGoPros[uuid] else { return }
+        guard bleManager.connectedGoPros[uuid] != nil else { return }
 
         // Provide haptic feedback for recording stop
         DispatchQueue.main.async {

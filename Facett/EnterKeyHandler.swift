@@ -43,14 +43,13 @@ class EnterKeyHandler: UIView {
 
     /// Define the key command for the Enter key (represented by "\r").
     override var keyCommands: [UIKeyCommand]? {
-        return [
-            UIKeyCommand(
-                input: "\r",
-                modifierFlags: [],
-                action: #selector(enterKeyPressed),
-                discoverabilityTitle: "Enter Key"
-            )
-        ]
+        let command = UIKeyCommand(
+            input: "\r",
+            modifierFlags: [],
+            action: #selector(enterKeyPressed)
+        )
+        command.discoverabilityTitle = "Enter Key"
+        return [command]
     }
 
     /// Called when the Enter key is pressed.

@@ -1586,7 +1586,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     /// Record disconnection for stability tracking
     private func recordDisconnection(for uuid: UUID) {
-        guard var stability = connectionStabilityMetrics[uuid] else { return }
+        guard let stability = connectionStabilityMetrics[uuid] else { return }
 
         let newDisconnectionCount = stability.disconnectionCount + 1
         let newTotalUptime = stability.totalUptime + Date().timeIntervalSince(stability.connectionStartTime)
@@ -1607,7 +1607,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         connectionStabilityMetrics[uuid] = updatedStability
 
         // Update performance metrics disconnection count
-        if var metrics = performanceMetrics[uuid] {
+        if let metrics = performanceMetrics[uuid] {
             let updatedMetrics = PerformanceMetrics(
                 timestamp: metrics.timestamp,
                 totalCommands: metrics.totalCommands,
