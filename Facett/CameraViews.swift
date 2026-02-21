@@ -363,7 +363,7 @@ struct ActiveGroupSummaryView: View {
 
         for serial in set.cameraSerials {
             // Look up the current UUID for this serial number
-            guard let cameraId = CameraSerialNumberManager.shared.getUUID(forSerial: serial) else {
+            guard let cameraId = CameraSerialResolver.shared.getUUID(forSerial: serial) else {
                 continue
             }
 
@@ -406,7 +406,7 @@ struct ActiveGroupSummaryView: View {
                 GridItem(.flexible())
             ], spacing: 8) {
                 ForEach(Array(set.cameraSerials).sorted(), id: \.self) { (serial: String) in
-                    if let cameraId = CameraSerialNumberManager.shared.getUUID(forSerial: serial) {
+                    if let cameraId = CameraSerialResolver.shared.getUUID(forSerial: serial) {
                         if let connectedCamera = bleManager.connectedGoPros[cameraId] {
                             // Camera is fully connected - show full status
                             CameraStatusCardView(

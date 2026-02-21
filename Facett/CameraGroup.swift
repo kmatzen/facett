@@ -20,7 +20,7 @@ struct CameraGroup: Identifiable, Codable {
     /// Helper to get current UUIDs for all cameras in this group
     var cameraIds: Set<UUID> {
         Set(cameraSerials.compactMap { serial in
-            CameraSerialNumberManager.shared.getUUID(forSerial: serial)
+            CameraSerialResolver.shared.getUUID(forSerial: serial)
         })
     }
 }

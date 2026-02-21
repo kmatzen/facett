@@ -97,9 +97,9 @@ class CameraIdentityManager: ObservableObject {
     }
 }
 
-// MARK: - Camera Serial Number Manager
-class CameraSerialNumberManager {
-    static let shared = CameraSerialNumberManager()
+// MARK: - Camera Serial Resolver
+class CameraSerialResolver {
+    static let shared = CameraSerialResolver()
 
     private let persistenceManager = DataPersistenceManager.shared
     private let serialToUUIDKey = "CameraSerialToUUID"
