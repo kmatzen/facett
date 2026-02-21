@@ -323,7 +323,7 @@ class BLEResponseHandler {
     /// Handle serial number update from apSSID - store mapping
     private func handleSerialNumberUpdate(ssid: String, uuid: UUID) {
         // Store the serial number mapping for lookup
-        CameraSerialNumberManager.shared.storeUUID(uuid, forSerial: ssid)
+        CameraSerialResolver.shared.storeUUID(uuid, forSerial: ssid)
 
         // Store the display name mapping using serial number
         if let gopro = bleManager?.connectedGoPros[uuid],
