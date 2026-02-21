@@ -97,7 +97,7 @@ struct CameraInGroupRowView: View {
     let onRemove: () -> Void
 
     private var cameraId: UUID? {
-        CameraSerialNumberManager.shared.getUUID(forSerial: cameraSerial)
+        CameraSerialResolver.shared.getUUID(forSerial: cameraSerial)
     }
 
     private func getCameraName() -> String {
