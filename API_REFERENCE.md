@@ -753,7 +753,7 @@ private func validateBooleanSetting(_ value: Bool, name: String) throws
 class CrashReporter: NSObject {
     static let shared = CrashReporter()
 
-    private let logger = Logger(subsystem: "com.matzen.facett", category: "CrashReporter")
+    private let logger = Logger(subsystem: "com.kmatzen.facett", category: "CrashReporter")
     private var crashLogs: [CrashLog] = []
     private var bugReports: [BugReport] = []
     private var errorLogs: [ErrorLog] = []
