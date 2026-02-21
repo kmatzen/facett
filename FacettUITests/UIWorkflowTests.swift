@@ -104,28 +104,23 @@ final class UIWorkflowTests: XCTestCase {
         }
     }
 
-    func testCameraSetManagementWorkflow() {
-        // Test the camera set management workflow
-        let cameraSetsButton = app.buttons["Camera Sets"]
-        XCTAssertTrue(cameraSetsButton.exists, "Camera Sets button should be visible")
+    func testCameraGroupManagementWorkflow() {
+        let cameraGroupsButton = app.buttons["Camera Groups"]
+        XCTAssertTrue(cameraGroupsButton.exists, "Camera Groups button should be visible")
 
-        cameraSetsButton.tap()
+        cameraGroupsButton.tap()
 
-        // Wait for camera set management view to appear
-        XCTAssertTrue(app.waitForExistence(timeout: 2), "Camera set management view should appear")
+        XCTAssertTrue(app.waitForExistence(timeout: 2), "Camera group management view should appear")
 
-        // Test adding a new camera set
-        let addButton = app.buttons["Add Camera Set"]
+        let addButton = app.buttons["Add Camera Group"]
         if addButton.exists {
             addButton.tap()
 
-            // Test camera set form
-            let nameField = app.textFields["Camera Set Name"]
+            let nameField = app.textFields["Camera Group Name"]
             if nameField.exists {
                 nameField.tap()
-                nameField.typeText("Test Camera Set")
+                nameField.typeText("Test Camera Group")
 
-                // Save camera set
                 let saveButton = app.buttons["Save"]
                 if saveButton.exists {
                     saveButton.tap()
@@ -133,7 +128,6 @@ final class UIWorkflowTests: XCTestCase {
             }
         }
 
-        // Go back to main view
         let backButton = app.buttons["Back"]
         if backButton.exists {
             backButton.tap()
