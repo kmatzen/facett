@@ -11,14 +11,16 @@ class CrashReporter: NSObject {
     private var bugReports: [BugReport] = []
 
     // File paths for storing reports
-    private var crashLogsPath: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("crash_logs.json")
+    private var documentsDirectory: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
     }
 
-    private var bugReportsPath: URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("bug_reports.json")
+    private var crashLogsPath: URL? {
+        documentsDirectory?.appendingPathComponent("crash_logs.json")
+    }
+
+    private var bugReportsPath: URL? {
+        documentsDirectory?.appendingPathComponent("bug_reports.json")
     }
 
     override init() {
@@ -168,29 +170,25 @@ class CrashReporter: NSObject {
     }
 
     private func saveErrorLog(_ errorLog: ErrorLog) {
-        // Save to file system
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
 
-        if let data = try? encoder.encode(errorLog) {
+        if let data = try? encoder.encode(errorLog),
+           let dir = documentsDirectory {
             let filename = "error_\(Date().timeIntervalSince1970).json"
-            let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-                .appendingPathComponent(filename)
-
+            let fileURL = dir.appendingPathComponent(filename)
             try? data.write(to: fileURL)
         }
     }
 
     private func saveWarningLog(_ warningLog: WarningLog) {
-        // Save to file system
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
 
-        if let data = try? encoder.encode(warningLog) {
+        if let data = try? encoder.encode(warningLog),
+           let dir = documentsDirectory {
             let filename = "warning_\(Date().timeIntervalSince1970).json"
-            let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-                .appendingPathComponent(filename)
-
+            let fileURL = dir.appendingPathComponent(filename)
             try? data.write(to: fileURL)
         }
     }
@@ -199,8 +197,9 @@ class CrashReporter: NSObject {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
 
-        if let data = try? encoder.encode(crashLogs) {
-            try? data.write(to: crashLogsPath)
+        if let data = try? encoder.encode(crashLogs),
+           let path = crashLogsPath {
+            try? data.write(to: path)
         }
     }
 
@@ -208,21 +207,25 @@ class CrashReporter: NSObject {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
 
-        if let data = try? encoder.encode(bugReports) {
-            try? data.write(to: bugReportsPath)
+        if let data = try? encoder.encode(bugReports),
+           let path = bugReportsPath {
+            try? data.write(to: path)
         }
     }
 
     private func loadExistingReports() {
-        // Load crash logs
-        if let data = try? Data(contentsOf: crashLogsPath),
-           let logs = try? JSONDecoder().decode([CrashLog].self, from: data) {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        if let path = crashLogsPath,
+           let data = try? Data(contentsOf: path),
+           let logs = try? decoder.decode([CrashLog].self, from: data) {
             crashLogs = logs
         }
 
-        // Load bug reports
-        if let data = try? Data(contentsOf: bugReportsPath),
-           let reports = try? JSONDecoder().decode([BugReport].self, from: data) {
+        if let path = bugReportsPath,
+           let data = try? Data(contentsOf: path),
+           let reports = try? decoder.decode([BugReport].self, from: data) {
             bugReports = reports
         }
     }
@@ -247,8 +250,7 @@ class CrashReporter: NSObject {
         saveCrashLogs()
         saveBugReports()
 
-        // Clear individual log files
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        guard let documentsPath = documentsDirectory else { return }
         let files = try? FileManager.default.contentsOfDirectory(at: documentsPath, includingPropertiesForKeys: nil)
 
         files?.forEach { file in
