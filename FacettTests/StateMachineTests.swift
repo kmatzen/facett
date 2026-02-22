@@ -275,6 +275,8 @@ class StateMachineTests: XCTestCase {
         let recordingCameras = statuses.filter { $0 == .recording }.count
         let connectingCameras = statuses.filter { $0 == .connecting }.count
         let initializingCameras = statuses.filter { $0 == .initializing }.count
+        let settingsMismatchCameras = statuses.filter { $0 == .settingsMismatch }.count
+        let modeMismatchCameras = statuses.filter { $0 == .modeMismatch }.count
 
         // Handle empty group case
         if totalCameras == 0 {
@@ -285,7 +287,9 @@ class StateMachineTests: XCTestCase {
                 disconnectedCameras: 0,
                 recordingCameras: 0,
                 connectingCameras: 0,
-                initializingCameras: 0
+                initializingCameras: 0,
+                settingsMismatchCameras: 0,
+                modeMismatchCameras: 0
             )
         }
 
@@ -296,7 +300,9 @@ class StateMachineTests: XCTestCase {
             disconnectedCameras: disconnectedCameras,
             recordingCameras: recordingCameras,
             connectingCameras: connectingCameras,
-            initializingCameras: initializingCameras
+            initializingCameras: initializingCameras,
+            settingsMismatchCameras: settingsMismatchCameras,
+            modeMismatchCameras: modeMismatchCameras
         )
     }
 
