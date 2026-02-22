@@ -75,11 +75,14 @@ class BLEConnectionManager: ObservableObject {
     @Published var connectionRetryStatus: [UUID: ConnectionRetryStatus] = [:]
     @Published var connectionHealth: [UUID: ConnectionHealth] = [:]
 
-    // Connection tracking
+    // NOTE: This retry system overlaps with BLEManager's own connectionRetryTimers
+    // and BLEDeviceStateManager's retry logic. Consolidating into a single system
+    // would reduce the risk of conflicting timeout values and simplify the codebase.
     private var connectionRetryCount: [UUID: Int] = [:]
     private var connectionRetryTimers: [UUID: Timer] = [:]
     private var connectionAttemptTimers: [UUID: Timer] = [:]
     private var maxRetryAttempts = 3
+    /// Empirical: must match BLEManager.connectionTimeout to avoid conflicting behavior
     private var connectionTimeout: TimeInterval = 15.0
 
     // Callbacks
@@ -150,7 +153,7 @@ class BLEConnectionManager: ObservableObject {
 
         if currentAttempt < maxRetryAttempts - 1 {
             // Schedule retry
-            let retryDelay = TimeInterval(currentAttempt + 1) * 2.0 // Exponential backoff
+            let retryDelay = TimeInterval(currentAttempt + 1) * 2.0
             connectionRetryCount[uuid] = currentAttempt + 1
 
             connectionRetryTimers[uuid] = Timer.scheduledTimer(withTimeInterval: retryDelay, repeats: false) { [weak self] _ in

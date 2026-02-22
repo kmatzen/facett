@@ -161,7 +161,8 @@ struct ContentView: View {
                     }
 
                     // Setup auto-sync timer
-                    autoSyncTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { _ in
+                    let autoSyncInterval: TimeInterval = 10.0 // Cosmetic: periodic config sync check
+                    autoSyncTimer = Timer.scheduledTimer(withTimeInterval: autoSyncInterval, repeats: true) { _ in
                         configManager.checkAndTriggerAutoSync(bleManager: bleManager, cameraGroupManager: cameraGroupManager)
 
                         // Also check for mode mismatches periodically

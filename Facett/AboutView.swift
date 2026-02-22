@@ -32,7 +32,12 @@ struct AboutView: View {
                 }
 
                 Section(header: Text("About")) {
-                    Text("Facett is a multi-camera control app that connects to action cameras over Bluetooth Low Energy. Manage camera groups, synchronize settings, and start or stop recording across multiple cameras simultaneously.")
+                    Text("""
+                        Facett is a multi-camera control app that connects to action \
+                        cameras over Bluetooth Low Energy. Manage camera groups, \
+                        synchronize settings, and start or stop recording across \
+                        multiple cameras simultaneously.
+                        """)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -66,7 +71,13 @@ struct AboutView: View {
                 }
 
                 Section(header: Text("Legal")) {
-                    Text("This product and/or service is not affiliated with, endorsed by or in any way associated with GoPro Inc. or its products and services. GoPro, HERO and their respective logos are trademarks or registered trademarks of GoPro, Inc.")
+                    Text("""
+                        This product and/or service is not affiliated with, \
+                        endorsed by or in any way associated with GoPro Inc. \
+                        or its products and services. GoPro, HERO and their \
+                        respective logos are trademarks or registered \
+                        trademarks of GoPro, Inc.
+                        """)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
