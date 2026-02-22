@@ -49,7 +49,7 @@ struct VoiceNotificationSettingsView: View {
                     .disabled(!voiceNotificationManager.voiceNotificationsEnabled)
 
                     Button("Test Camera Connected") {
-                        voiceNotificationManager.notifyCameraConnected(cameraName: "GoPro Hero 11")
+                        voiceNotificationManager.notifyCameraConnected(cameraName: "Camera 1")
                     }
                     .disabled(!voiceNotificationManager.voiceNotificationsEnabled)
                 }

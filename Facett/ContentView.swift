@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var showingConfigManagement = false
     @State private var showingVoiceNotificationSettings = false
     @State private var showingBugReportForm = false
+    @State private var showingAbout = false
     @State private var autoSyncTimer: Timer?
     @State private var syncRotation: Double = 0
     @State private var showModeMismatchModal = false
@@ -222,7 +223,8 @@ struct ContentView: View {
                 showingCameraGroupManagement: $showingCameraGroupManagement,
                 showingConfigManagement: $showingConfigManagement,
                 showingVoiceNotificationSettings: $showingVoiceNotificationSettings,
-                showingBugReportForm: $showingBugReportForm
+                showingBugReportForm: $showingBugReportForm,
+                showingAbout: $showingAbout
             )
 
             // QR Code Section - Prominent placement
@@ -256,6 +258,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingBugReportForm) {
             BugReportView()
+        }
+        .sheet(isPresented: $showingAbout) {
+            AboutView()
         }
         .alert("Camera Mode Mismatch", isPresented: $showModeMismatchModal) {
             Button("OK") {
