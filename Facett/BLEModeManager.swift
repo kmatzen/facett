@@ -7,6 +7,9 @@ class BLEModeManager {
     // MARK: - Dependencies
     private weak var bleManager: BLEManager?
 
+    private let modeSwitchPollInterval: TimeInterval = 0.3
+    private let modeSwitchTimeout: TimeInterval = 5.0
+
     // MARK: - Initialization
     init(bleManager: BLEManager) {
         self.bleManager = bleManager
@@ -71,21 +74,38 @@ class BLEModeManager {
                     commandName: "switch to \(modeName.lowercased()) mode",
                     requiresControl: true)
 
-        // Set a timeout for mode switch
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-            // Check if mode switch was successful
-            if let gopro = bleManager.connectedGoPros[uuid] {
-                let newMode = self.getCameraMode(gopro)
-                let success = newMode == mode
-                if success {
-                    bleManager.log("✅ Successfully switched to \(modeName) mode")
-                } else {
-                    bleManager.log("❌ Failed to switch to \(modeName) mode (current: \(newMode.description))")
-                }
-                completion(success)
-            } else {
+        pollForModeChange(uuid: uuid, expectedMode: mode, modeName: modeName, startTime: Date(), completion: completion)
+    }
+
+    /// Poll for mode change with early exit instead of a fixed delay.
+    /// Checks every 0.3s, times out after 5s.
+    private func pollForModeChange(uuid: UUID, expectedMode: CameraMode, modeName: String, startTime: Date, completion: @escaping (Bool) -> Void) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + modeSwitchPollInterval) { [weak self] in
+            guard let self = self, let bleManager = self.bleManager else {
                 completion(false)
+                return
             }
+
+            guard let gopro = bleManager.connectedGoPros[uuid] else {
+                completion(false)
+                return
+            }
+
+            let currentMode = self.getCameraMode(gopro)
+            if currentMode == expectedMode {
+                bleManager.log("✅ Successfully switched to \(modeName) mode")
+                completion(true)
+                return
+            }
+
+            let elapsed = Date().timeIntervalSince(startTime)
+            if elapsed >= self.modeSwitchTimeout {
+                bleManager.log("❌ Failed to switch to \(modeName) mode after \(String(format: "%.1f", elapsed))s (current: \(currentMode.description))")
+                completion(false)
+                return
+            }
+
+            self.pollForModeChange(uuid: uuid, expectedMode: expectedMode, modeName: modeName, startTime: startTime, completion: completion)
         }
     }
 
