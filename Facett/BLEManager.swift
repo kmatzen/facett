@@ -818,15 +818,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
 
     func setDateTime(for uuid: UUID) {
+        guard connectedGoPros[uuid] != nil else { return }
 
-
-        guard let gopro = connectedGoPros[uuid] else { return }
-        guard let characteristic = findCharacteristic(for: gopro.peripheral, uuid: Constants.UUIDs.command) else {
-            log("Command characteristic not found for \(gopro.peripheral.name ?? "a device").")
-            return
-        }
-
-        // Get the current date and time
         let now = Date()
         let calendar = Calendar.current
         let year = UInt16(calendar.component(.year, from: now))
@@ -836,31 +829,27 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let minute = UInt8(calendar.component(.minute, from: now))
         let second = UInt8(calendar.component(.second, from: now))
 
-        // Serialize the date and time into the required 7-byte format
+        // GoPro Set Date Time (Command ID 0x0D) with 7-byte date payload
         let dateTimeCommand: [UInt8] = [
             9,
-            0x0D, // Command ID for "Set Date Time"
+            0x0D,
             7,
-            UInt8((year >> 8) & 0xFF), // Year (high byte)
-            UInt8(year & 0xFF),        // Year (low byte)
-            month,                     // Month
-            day,                       // Day
-            hour,                      // Hour
-            minute,                    // Minute
-            second                     // Second
+            UInt8((year >> 8) & 0xFF),
+            UInt8(year & 0xFF),
+            month,
+            day,
+            hour,
+            minute,
+            second
         ]
 
-        // Send the command
-        bleCommandQueue.async {
-            gopro.peripheral.writeValue(Data(dateTimeCommand), for: characteristic, type: .withResponse)
+        sendCommand(dateTimeCommand, to: uuid, commandName: "set date time")
+
+        DispatchQueue.main.async { [weak self] in
+            self?.connectedGoPros[uuid]?.status.lastTimeSyncDate = now
         }
 
-        // Record the time sync on the main thread
-        DispatchQueue.main.async {
-            gopro.status.lastTimeSyncDate = now
-        }
-
-        log("Sent Set Date Time command to \(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)). Date: \(year)-\(month)-\(day) \(hour):\(minute):\(second)")
+        log("Sent Set Date Time command to \(CameraIdentityManager.shared.getDisplayName(for: uuid)). Date: \(year)-\(month)-\(day) \(hour):\(minute):\(second)")
     }
 
     // MARK: - CBCentralManagerDelegate Conformance
