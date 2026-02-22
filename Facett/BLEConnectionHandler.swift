@@ -36,12 +36,18 @@ class BLEConnectionHandler {
 
         // UI updates must happen on main thread
         DispatchQueue.main.async {
+            let wasEmpty = bleManager.connectedGoPros.isEmpty
+
             bleManager.connectedGoPros[uuid] = gopro // Move to connected list
             bleManager.connectingGoPros.removeValue(forKey: uuid) // Remove from connecting list
             bleManager.discoveredGoPros.removeValue(forKey: uuid) // Remove from discovered list
 
             // Reset initialization flag for new connection
             gopro.hasReceivedInitialStatus = false
+
+            if wasEmpty {
+                bleManager.startKeepAliveTimer()
+            }
 
             // Notify that camera is connected
             bleManager.onCameraConnected?(uuid)
@@ -55,30 +61,38 @@ class BLEConnectionHandler {
         guard let bleManager = bleManager else { return }
 
         let uuid = peripheral.identifier
-        ErrorHandler.info("\(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) disconnected.")
+        let cameraName = CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)
+        ErrorHandler.info("\(cameraName) disconnected.")
 
-        // Cancel any pending connection retry timers
         bleManager.connectionManager.cancelConnectionRetry(for: uuid)
-
         bleManager.cleanupDeviceState(for: uuid)
 
         DispatchQueue.main.async {
             let isSleeping = bleManager.isDeviceSleeping(uuid)
+            let wasConnected = bleManager.connectedGoPros[uuid] != nil
 
             if let gopro = bleManager.connectedGoPros[uuid] {
                 bleManager.connectedGoPros.removeValue(forKey: uuid)
                 if !isSleeping {
                     bleManager.discoveredGoPros[uuid] = gopro
                 } else {
-                    ErrorHandler.info("\(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) is sleeping - not moving to discovered list")
+                    ErrorHandler.debug("\(cameraName) is sleeping - not moving to discovered list")
                 }
             } else if let gopro = bleManager.connectingGoPros[uuid] {
                 bleManager.connectingGoPros.removeValue(forKey: uuid)
                 if !isSleeping {
                     bleManager.discoveredGoPros[uuid] = gopro
                 } else {
-                    ErrorHandler.info("\(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) is sleeping - not moving to discovered list")
+                    ErrorHandler.debug("\(cameraName) is sleeping - not moving to discovered list")
                 }
+            }
+
+            if bleManager.connectedGoPros.isEmpty {
+                bleManager.stopKeepAliveTimer()
+            }
+
+            if wasConnected && !isSleeping {
+                bleManager.scheduleReconnectIfNeeded(for: uuid)
             }
         }
     }
@@ -104,7 +118,7 @@ class BLEConnectionHandler {
         // Iterate through discovered services
         for service in services {
             if service.uuid == BLEManager.Constants.UUIDs.goproService {
-                ErrorHandler.info("Discovered GoPro service for \(peripheral.name ?? "a device")")
+                ErrorHandler.debug("Discovered GoPro service for \(peripheral.name ?? "a device")")
 
                 // Discover characteristics for the GoPro service
                 peripheral.discoverCharacteristics(
@@ -119,7 +133,7 @@ class BLEConnectionHandler {
                     for: service
                 )
             } else if service.uuid == BLEManager.Constants.UUIDs.goproWiFiService {
-                ErrorHandler.info("Discovered GoPro WiFi Access Point service for \(peripheral.name ?? "a device")")
+                ErrorHandler.debug("Discovered GoPro WiFi Access Point service for \(peripheral.name ?? "a device")")
 
                 // Discover characteristics for the GoPro WiFi service
                 peripheral.discoverCharacteristics(
@@ -152,73 +166,69 @@ class BLEConnectionHandler {
             return
         }
 
+        let deviceName = peripheral.name ?? "a device"
+        var discoveredNames: [String] = []
+
         for characteristic in characteristics {
             switch characteristic.uuid {
             case BLEManager.Constants.UUIDs.query:
-                ErrorHandler.info("Discovered 'Query' characteristic for \(peripheral.name ?? "a device")")
+                discoveredNames.append("Query")
 
             case BLEManager.Constants.UUIDs.queryResponse:
-                ErrorHandler.info("Discovered 'Query Response' characteristic for \(peripheral.name ?? "a device")")
+                discoveredNames.append("Query Response")
                 if characteristic.properties.contains(.notify) {
-                    peripheral.setNotifyValue(true, for: characteristic) // Enable notifications
-                    ErrorHandler.info("Subscribed to notifications for 'Query Response'")
+                    peripheral.setNotifyValue(true, for: characteristic)
                 }
 
             case BLEManager.Constants.UUIDs.command:
-                ErrorHandler.info("Discovered 'Command' characteristic for \(peripheral.name ?? "a device")")
+                discoveredNames.append("Command")
 
             case BLEManager.Constants.UUIDs.commandResponse:
-                ErrorHandler.info("Discovered 'Command Response' characteristic for \(peripheral.name ?? "a device")")
+                discoveredNames.append("Command Response")
                 if characteristic.properties.contains(.notify) {
-                    peripheral.setNotifyValue(true, for: characteristic) // Enable notifications
-                    ErrorHandler.info("Subscribed to notifications for 'Command Response'")
+                    peripheral.setNotifyValue(true, for: characteristic)
                 }
 
             case BLEManager.Constants.UUIDs.settings:
-                ErrorHandler.info("Discovered 'Settings' characteristic for \(peripheral.name ?? "a device")")
+                discoveredNames.append("Settings")
 
             case BLEManager.Constants.UUIDs.settingsResponse:
-                ErrorHandler.info("Discovered 'Settings Response' characteristic for \(peripheral.name ?? "a device")")
+                discoveredNames.append("Settings Response")
                 if characteristic.properties.contains(.notify) {
-                    peripheral.setNotifyValue(true, for: characteristic) // Enable notifications
-                    ErrorHandler.info("Subscribed to notifications for 'Settings Response'")
+                    peripheral.setNotifyValue(true, for: characteristic)
                 }
 
-            // GoPro WiFi Access Point characteristics
             case BLEManager.Constants.UUIDs.wifiAPSSID:
-                ErrorHandler.info("Discovered 'WiFi AP SSID' characteristic for \(peripheral.name ?? "a device")")
+                discoveredNames.append("WiFi SSID")
                 if characteristic.properties.contains(.read) {
-                    // Read the current WiFi SSID
                     peripheral.readValue(for: characteristic)
-                    ErrorHandler.info("Reading WiFi AP SSID from \(peripheral.name ?? "a device")")
                 }
 
             case BLEManager.Constants.UUIDs.wifiAPPassword:
-                ErrorHandler.info("Discovered 'WiFi AP Password' characteristic for \(peripheral.name ?? "a device")")
+                discoveredNames.append("WiFi Password")
                 if characteristic.properties.contains(.read) {
-                    // Read the current WiFi password
                     peripheral.readValue(for: characteristic)
-                    ErrorHandler.info("Reading WiFi AP Password from \(peripheral.name ?? "a device")")
                 }
 
             case BLEManager.Constants.UUIDs.wifiAPPower:
-                ErrorHandler.info("Discovered 'WiFi AP Power' characteristic for \(peripheral.name ?? "a device")")
+                discoveredNames.append("WiFi Power")
 
             case BLEManager.Constants.UUIDs.wifiAPState:
-                ErrorHandler.info("Discovered 'WiFi AP State' characteristic for \(peripheral.name ?? "a device")")
+                discoveredNames.append("WiFi State")
                 if characteristic.properties.contains(.read) {
-                    // Read the current WiFi AP state
                     peripheral.readValue(for: characteristic)
-                    ErrorHandler.info("Reading WiFi AP State from \(peripheral.name ?? "a device")")
                 }
                 if characteristic.properties.contains(.indicate) {
-                    peripheral.setNotifyValue(true, for: characteristic) // Enable indications
-                    ErrorHandler.info("Subscribed to indications for 'WiFi AP State'")
+                    peripheral.setNotifyValue(true, for: characteristic)
                 }
 
             default:
-                ErrorHandler.info("Discovered unknown characteristic \(characteristic.uuid) for \(peripheral.name ?? "a device")")
+                ErrorHandler.debug("Unknown characteristic \(characteristic.uuid) for \(deviceName)")
             }
+        }
+
+        if !discoveredNames.isEmpty {
+            ErrorHandler.debug("Configured \(discoveredNames.count) characteristics for \(deviceName): \(discoveredNames.joined(separator: ", "))")
         }
 
         bleManager.claimControl(for: peripheral.identifier)

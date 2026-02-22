@@ -313,44 +313,35 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             ErrorHandler.debug("First command added to queue, queue now has 1 command")
         }
 
-        // Start queue processing timer if not already running
         if commandQueueTimers[uuid] == nil {
-            ErrorHandler.debug("Starting timer for new queue")
             startCommandQueueTimer(for: uuid)
-        } else {
-            ErrorHandler.debug("Timer already running for this camera")
         }
     }
 
     /// Start the command queue processing timer for a specific camera
     private func startCommandQueueTimer(for uuid: UUID) {
-        ErrorHandler.debug("Starting command queue timer for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        // Invalidate any existing timer before creating a new one
+        commandQueueTimers[uuid]?.invalidate()
 
-        // Ensure timer is created on main thread and added to main run loop
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+        if Thread.isMainThread {
             let timer = Timer.scheduledTimer(withTimeInterval: self.commandQueueInterval, repeats: true) { [weak self] _ in
                 self?.processCommandQueue(for: uuid)
             }
             self.commandQueueTimers[uuid] = timer
-            ErrorHandler.debug("Timer created and scheduled for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                self.commandQueueTimers[uuid]?.invalidate()
+                let timer = Timer.scheduledTimer(withTimeInterval: self.commandQueueInterval, repeats: true) { [weak self] _ in
+                    self?.processCommandQueue(for: uuid)
+                }
+                self.commandQueueTimers[uuid] = timer
+            }
         }
     }
 
-    /// Process the command queue for a specific camera
     private func processCommandQueue(for uuid: UUID) {
-        ErrorHandler.debug("Processing command queue for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
-
-        guard let queue = commandQueues[uuid] else {
-            log("No command queue found for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
-            commandQueueTimers[uuid]?.invalidate()
-            commandQueueTimers[uuid] = nil
-            return
-        }
-
-        guard !queue.isEmpty else {
-            ErrorHandler.debug("Queue is empty for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), stopping timer")
-            // Queue is empty, stop the timer
+        guard let queue = commandQueues[uuid], !queue.isEmpty else {
             commandQueueTimers[uuid]?.invalidate()
             commandQueueTimers[uuid] = nil
             return
@@ -469,6 +460,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var centralManager: CBCentralManager!
     private var deviceQueryTimer: Timer?
     private var deviceScanTimer: Timer?
+    private var keepAliveTimer: Timer?
     private var timeoutCheckTimer: Timer?
     private var settingsQueryCounter = 0 // Counter to reduce settings query frequency
 
@@ -662,6 +654,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         stopDeviceQueryTimer()
         stopDeviceScanTimer()
         stopStragglerRetryTimer()
+        stopKeepAliveTimer()
         connectionRetryTimers.values.forEach { $0.invalidate() }
         connectionRetryTimers.removeAll()
         connectionAttemptTimers.values.forEach { $0.invalidate() }
@@ -1913,16 +1906,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         guard let gopro = connectedGoPros[uuid] else { return }
 
         if sleep {
-            // For sleep, first release control, then send sleep command
             releaseControl(for: uuid)
 
-            // Wait a moment for control release, then send sleep command
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self = self else { return }
                 self.sendSleepCommand(to: gopro)
             }
         } else {
-            // For normal disconnect, release control and disconnect immediately
             releaseControl(for: uuid)
             if let cbPeripheral = gopro.peripheral.cbPeripheral {
                 centralManager.cancelPeripheralConnection(cbPeripheral)
@@ -1932,14 +1922,16 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     func powerDownGoPro(uuid: UUID) {
-
-
         guard let gopro = connectedGoPros[uuid] else { return }
 
-            sendPowerDownCommand(to: gopro)
+        sendPowerDownCommand(to: gopro)
 
-        removeDevice(from: \.connectedGoPros, uuid: uuid) // Use key path for connectedGoPros
+        removeDevice(from: \.connectedGoPros, uuid: uuid)
         log("\(gopro.peripheral.name ?? "GoPro") powered down.")
+
+        if connectedGoPros.isEmpty {
+            stopKeepAliveTimer()
+        }
     }
 
 
@@ -1952,13 +1944,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let sleepCommand: [UInt8] = [1, 5]
         let uuid = gopro.peripheral.identifier
 
-        // Track this as a pending sleep command
         pendingSleepCommands.insert(uuid)
-
-        // Mark device as sleeping
         deviceStateManager.setDeviceSleeping(uuid, isSleeping: true)
+        targetConnectedCameras.remove(uuid)
 
-        // Cancel any pending connection retry timers
         connectionRetryTimers[uuid]?.invalidate()
         connectionRetryTimers.removeValue(forKey: uuid)
         connectionAttemptTimers[uuid]?.invalidate()
@@ -1986,8 +1975,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let powerDownCommand: [UInt8] = [1, 4]
         let uuid = gopro.peripheral.identifier
 
-        // Track this as a pending power down command
         pendingPowerDownCommands.insert(uuid)
+        targetConnectedCameras.remove(uuid)
 
         sendCommand(powerDownCommand, to: gopro, actionDescription: "Powering down")
 
@@ -2084,6 +2073,36 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
 
+    // MARK: - Keep Alive
+
+    func startKeepAliveTimer() {
+        stopKeepAliveTimer()
+        DispatchQueue.main.async {
+            self.keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+                self?.sendKeepAliveToAll()
+            }
+        }
+    }
+
+    func stopKeepAliveTimer() {
+        DispatchQueue.main.async {
+            self.keepAliveTimer?.invalidate()
+            self.keepAliveTimer = nil
+        }
+    }
+
+    private func sendKeepAliveToAll() {
+        let command = Data(GoProCommands.KeepAlive.ping)
+        for (_, gopro) in connectedGoPros {
+            guard let characteristic = findCharacteristic(for: gopro.peripheral, uuid: Constants.UUIDs.settings) else {
+                continue
+            }
+            bleCommandQueue.async {
+                gopro.peripheral.writeValue(command, for: characteristic, type: .withResponse)
+            }
+        }
+    }
+
     func pauseScanning() {
         DispatchQueue.main.async {
             self.stopDeviceScanTimer()
@@ -2170,6 +2189,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     // MARK: - Sleep and Wake Operations
     func putCamerasToSleep() {
+        stopKeepAliveTimer()
         connectedGoPros.keys.forEach { disconnectFromGoPro(uuid: $0, sleep: true) }
     }
 
@@ -2310,24 +2330,22 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
 
         if !stragglers.isEmpty {
-            log("Found \(stragglers.count) straggler cameras, attempting to reconnect...")
+            ErrorHandler.info("Reconnecting \(stragglers.count) dropped camera(s)...")
 
             for cameraId in stragglers {
                 let currentRetryCount = stragglerRetryCount[cameraId] ?? 0
 
                 if currentRetryCount < maxStragglerRetries {
                     stragglerRetryCount[cameraId] = currentRetryCount + 1
-                    log("Retrying straggler camera \(CameraIdentityManager.shared.getDisplayName(for: cameraId)) (attempt \(currentRetryCount + 1)/\(maxStragglerRetries))")
+                    ErrorHandler.info("Reconnecting \(CameraIdentityManager.shared.getDisplayName(for: cameraId)) (attempt \(currentRetryCount + 1)/\(maxStragglerRetries))")
                     connectToGoPro(uuid: cameraId)
                 } else {
-                    log("Giving up on straggler camera \(CameraIdentityManager.shared.getDisplayName(for: cameraId)) after \(maxStragglerRetries) attempts")
-                    // Remove from target cameras if we've given up
+                    ErrorHandler.warning("Giving up on \(CameraIdentityManager.shared.getDisplayName(for: cameraId)) after \(maxStragglerRetries) reconnect attempts")
                     targetConnectedCameras.remove(cameraId)
                 }
             }
         } else {
-            // All target cameras are connected or connecting, stop the timer
-            log("All target cameras connected, stopping straggler retry timer")
+            ErrorHandler.debug("All target cameras connected")
             stopStragglerRetryTimer()
             logConnectionSummary()
         }
@@ -2346,6 +2364,17 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         targetConnectedCameras.removeAll()
         stopStragglerRetryTimer()
         stragglerRetryCount.removeAll()
+    }
+
+    /// Schedule auto-reconnect for a camera that dropped unexpectedly
+    func scheduleReconnectIfNeeded(for uuid: UUID) {
+        guard targetConnectedCameras.contains(uuid) else { return }
+
+        let cameraName = CameraIdentityManager.shared.getDisplayName(for: uuid)
+        ErrorHandler.info("Camera \(cameraName) dropped - scheduling reconnect")
+
+        stragglerRetryCount[uuid] = 0
+        startStragglerRetryTimer()
     }
 
     /// Log a summary of connection status for debugging
