@@ -39,11 +39,12 @@ class DataPersistenceManager {
     }
 
     private init() {
-        // Get documents directory
-        guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            fatalError("Could not access documents directory")
+        if let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
+            self.documentsDirectory = documentsURL
+        } else {
+            self.documentsDirectory = fileManager.temporaryDirectory
+            logger.error("Could not access documents directory, falling back to temporary directory")
         }
-        self.documentsDirectory = documentsURL
 
         // Create data directory if it doesn't exist
         let dataDirectory = documentsDirectory.appendingPathComponent("Data")
@@ -90,6 +91,19 @@ class DataPersistenceManager {
 
     /// Retrieve simple values from UserDefaults
     func retrieveSimpleValue<T>(_ type: T.Type, forKey key: String) -> T? {
+        guard userDefaults.object(forKey: key) != nil else { return nil }
+        if type == Bool.self {
+            return userDefaults.bool(forKey: key) as? T
+        }
+        if type == Int.self {
+            return userDefaults.integer(forKey: key) as? T
+        }
+        if type == Double.self {
+            return userDefaults.double(forKey: key) as? T
+        }
+        if type == String.self {
+            return userDefaults.string(forKey: key) as? T
+        }
         return userDefaults.object(forKey: key) as? T
     }
 
@@ -231,15 +245,18 @@ class DataPersistenceManager {
     }
 
     /// Check if data exists for a key
-    func dataExists(forKey key: String, storageType: StorageType = .userDefaults) -> Bool {
+    func dataExists(forKey key: String, storageType: StorageType = .userDefaults, subdirectory: String? = nil) -> Bool {
         switch storageType {
         case .userDefaults:
             return userDefaults.object(forKey: key) != nil
         case .documents:
-            let fileURL = documentsDirectory.appendingPathComponent("Data").appendingPathComponent(key)
+            let directory = subdirectory != nil ?
+                documentsDirectory.appendingPathComponent("Data").appendingPathComponent(subdirectory!) :
+                documentsDirectory.appendingPathComponent("Data")
+            let fileURL = directory.appendingPathComponent(key)
             return fileManager.fileExists(atPath: fileURL.path)
         case .cache:
-            return false // Cache is handled by CacheManager
+            return false
         }
     }
 
