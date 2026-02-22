@@ -1,4 +1,4 @@
-# GoPro Configurator - API Reference
+# Facett - API Reference
 
 ## Table of Contents
 1. [Core Classes](#core-classes)
@@ -207,53 +207,32 @@ func hasSettingsMismatch(gopro: GoPro, targetSettings: GoProSettings) -> Bool
 ### CameraGroupManager
 
 **File**: `CameraGroup.swift`
-**Purpose**: Manage groups of cameras (camera groups)
+**Purpose**: Manage groups of cameras (camera groups), keyed by serial number
 
 #### Properties
 
 ```swift
 class CameraGroupManager: ObservableObject {
-    @Published var cameraSets: [CameraGroup] = []
+    @Published var cameraGroups: [CameraGroup] = []
+    @Published var activeGroupId: UUID?
     private let configManager: ConfigManager
-    private let userDefaults = UserDefaults.standard
 }
 ```
 
 #### Methods
 
 ```swift
-// Add a new camera group
-func addCameraGroup(name: String, cameraIds: Set<UUID> = [], configId: UUID? = nil)
+func addCameraGroup(name: String)
+func removeCameraGroup(_ group: CameraGroup)
+func updateCameraGroup(_ group: CameraGroup)
+func setActiveGroup(_ group: CameraGroup?)
+var activeGroup: CameraGroup? { get }
 
-// Remove a camera group
-func removeCameraGroup(_ cameraSet: CameraGroup)
-
-// Get camera group by ID
-func getCameraGroup(_ id: UUID) -> CameraGroup?
-
-// Add camera to set
-func addCamera(_ cameraId: UUID, to cameraSet: CameraGroup)
-
-// Remove camera from set
-func removeCamera(_ cameraId: UUID, from cameraSet: CameraGroup)
-
-// Set active camera group
-func setActiveCameraGroup(_ cameraSet: CameraGroup)
-
-// Get active camera group
-func getActiveCameraGroup() -> CameraGroup?
-
-// Save camera groups to persistent storage
-func saveCameraGroups()
-
-// Load camera groups from persistent storage
-func loadCameraGroups()
-
-// Get cameras in a group
-func getCamerasInSet(_ cameraSet: CameraGroup, from gopros: [GoPro]) -> [GoPro]
-
-// Get group status
-func getSetStatus(_ cameraSet: CameraGroup, gopros: [GoPro]) -> SetStatus
+func addCameraToGroup(_ cameraSerial: String, group: CameraGroup)
+func removeCameraFromGroup(_ cameraSerial: String, group: CameraGroup)
+func getCamerasInActiveGroup(from bleManager: BLEManager) -> [UUID: GoPro]
+func assignConfigToGroup(_ configId: UUID, group: CameraGroup, bleManager: BLEManager)
+func getGroupStatus(for group: CameraGroup, bleManager: BLEManager) -> GroupStatus
 ```
 
 ---
@@ -482,9 +461,9 @@ static func createDefault() -> CameraConfig
 struct CameraGroup: Identifiable, Codable {
     let id: UUID
     var name: String
-    var cameraIds: Set<UUID>
+    var cameraSerials: Set<String>
     var isActive: Bool
-    var configId: UUID? // Reference to a CameraConfig
+    var configId: UUID?
 }
 ```
 
@@ -764,26 +743,10 @@ class CrashReporter: NSObject {
 #### Methods
 
 ```swift
-// Log an error
-func logError(_ message: String, error: Error?, context: [String: String])
-
-// Log a warning
-func logWarning(_ message: String, context: [String: String])
-
-// Submit a bug report
-func submitBugReport(_ report: BugReport)
-
-// Get all reports
-func getAllReports() -> (crashes: [CrashLog], bugs: [BugReport], errors: [ErrorLog], warnings: [WarningLog])
-
-// Clear old reports
-func clearOldReports(olderThan days: Int)
-
-// Export reports
-func exportReports() -> Data?
-
-// Check if running in TestFlight
-func isTestFlightBuild() -> Bool
+func logError(_ message: String, error: Error? = nil, context: [String: Any] = [:], appStateContext: AppStateContext? = nil)
+func logWarning(_ message: String, context: [String: Any] = [:], appStateContext: AppStateContext? = nil)
+func reportBug(title: String, description: String, severity: BugSeverity = .medium, category: BugCategory = .general, userSteps: String? = nil, expectedBehavior: String? = nil, actualBehavior: String? = nil, additionalInfo: [String: String] = [:])
+func getAllReports() -> (crashLogs: [CrashLog], bugReports: [BugReport])
 ```
 
 ### HapticManager
@@ -1255,4 +1218,125 @@ enum BLEError: Error, LocalizedError {
 
 ---
 
-This API reference provides a comprehensive overview of all the major classes, methods, and interfaces in the GoPro Configurator app. Each section includes detailed information about properties, methods, parameters, and return values, making it easy for developers to understand and use the codebase effectively.
+## Additional Core Classes
+
+### ErrorHandler
+
+**File**: `ErrorHandling.swift`
+**Purpose**: Centralized error handling and logging with severity levels and BLE-specific helpers
+
+```swift
+class ErrorHandler {
+    static let shared: ErrorHandler
+
+    func logError(_ message: String, error: Error? = nil, context: [String: Any] = [:], file: String = #file, function: String = #function, line: Int = #line)
+    func logWarning(_ message: String, context: [String: Any] = [:], file: String = #file, function: String = #function, line: Int = #line)
+    func logInfo(_ message: String, context: [String: Any] = [:], file: String = #file, function: String = #function, line: Int = #line)
+    func logDebug(_ message: String, context: [String: Any] = [:], file: String = #file, function: String = #function, line: Int = #line)
+
+    func logBLEError(_ message: String, peripheral: CBPeripheral? = nil, characteristic: CBCharacteristic? = nil, error: Error? = nil, context: [String: Any] = [:])
+    func logCameraError(_ message: String, camera: GoPro? = nil, error: Error? = nil, context: [String: Any] = [:])
+
+    func handleBLEConnectionError(_ error: Error, peripheral: CBPeripheral, context: [String: Any] = [:])
+    func handleBLECommandError(_ error: Error, peripheral: CBPeripheral, command: String, context: [String: Any] = [:])
+    func getBLERecoveryStrategy(for error: Error) -> BLERecoveryStrategy
+}
+
+// Static convenience methods
+extension ErrorHandler {
+    static func error(_ message: String, error: Error? = nil, context: [String: Any] = [:])
+    static func warning(_ message: String, context: [String: Any] = [:])
+    static func info(_ message: String, context: [String: Any] = [:])
+    static func debug(_ message: String, context: [String: Any] = [:])
+    static func bleError(_ message: String, peripheral: CBPeripheral? = nil, error: Error? = nil, context: [String: Any] = [:])
+}
+```
+
+---
+
+### BLEResponseHandler
+
+**File**: `BLEResponseHandler.swift`
+**Purpose**: Parse BLE query responses and update camera status
+
+```swift
+class BLEResponseHandler {
+    init(bleManager: BLEManager)
+
+    func handleQueryResponse(_ data: Data, for peripheral: CBPeripheral)
+    func updateGoProStatus(uuid: UUID, with responses: [ResponseType])
+}
+```
+
+---
+
+### BLEConnectionHandler
+
+**File**: `BLEConnectionHandler.swift`
+**Purpose**: Manage BLE connection lifecycle, service and characteristic discovery
+
+```swift
+class BLEConnectionHandler {
+    init(bleManager: BLEManager)
+
+    func handleConnectionSuccess(_ peripheral: CBPeripheral)
+    func handleDisconnection(_ peripheral: CBPeripheral, error: Error?)
+    func handleServiceDiscovery(_ peripheral: CBPeripheral, error: Error?)
+    func handleCharacteristicDiscovery(_ peripheral: CBPeripheral, service: CBService, error: Error?)
+}
+```
+
+---
+
+### BLEModeManager
+
+**File**: `BLEModeManager.swift`
+**Purpose**: Camera mode switching and status across single or multiple cameras
+
+```swift
+class BLEModeManager {
+    init(bleManager: BLEManager)
+
+    func getCameraMode(_ gopro: GoPro) -> CameraMode
+    func switchToMode(_ mode: CameraMode, for uuid: UUID, completion: @escaping (Bool) -> Void)
+    func switchToVideoMode(for uuid: UUID, completion: @escaping (Bool) -> Void)
+    func switchToPhotoMode(for uuid: UUID, completion: @escaping (Bool) -> Void)
+    func switchToMultishotMode(for uuid: UUID, completion: @escaping (Bool) -> Void)
+    func switchAllCamerasToMode(_ mode: CameraMode, completion: @escaping ([UUID: Bool]) -> Void)
+    func areAllCamerasInMode(_ mode: CameraMode) -> Bool
+    func getCamerasNotInMode(_ mode: CameraMode) -> [GoPro]
+    func modeDescription(_ mode: Int) -> String
+    func getCurrentModeDescription(for uuid: UUID) -> String
+}
+```
+
+---
+
+### CameraIdentityManager
+
+**File**: `CameraIdentityManager.swift`
+**Purpose**: Persistent camera display names and serial-to-UUID mapping
+
+```swift
+class CameraIdentityManager: ObservableObject {
+    static let shared: CameraIdentityManager
+
+    func getDisplayName(for cameraId: UUID, currentName: String? = nil) -> String
+    func getDisplayName(forSerial serial: String, currentName: String? = nil) -> String
+    func storeCameraName(_ name: String, forSerial serial: String)
+    func removeCameraName(forSerial serial: String)
+    func getAllCameraNames() -> [String: String]
+}
+
+class CameraSerialResolver {
+    static let shared: CameraSerialResolver
+
+    func getUUID(forSerial serial: String) -> UUID?
+    func storeUUID(_ uuid: UUID, forSerial serial: String)
+    func getSerial(forUUID uuid: UUID) -> String?
+    func removeMapping(forSerial serial: String)
+    func getAllMappings() -> [String: UUID]
+}
+```
+
+---
