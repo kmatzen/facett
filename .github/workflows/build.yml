@@ -41,6 +41,9 @@ jobs:
             -only-testing:FacettTests/GoProCommandTests \
             -only-testing:FacettTests/SettingsTests \
             -only-testing:FacettTests/StateMachineTests \
+            -only-testing:FacettTests/CameraSettingDescriptionTests \
+            -only-testing:FacettTests/ErrorHandlerTests \
+            -only-testing:FacettTests/CameraGroupTests \
             -enableCodeCoverage YES \
             -resultBundlePath TestResults.xcresult
 
