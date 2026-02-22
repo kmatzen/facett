@@ -616,7 +616,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         recordingManager = BLERecordingManager(bleManager: self, modeManager: modeManager)
 
         // Use a background queue for BLE operations to avoid blocking UI
-        let bleQueue = DispatchQueue(label: "com.gopro.ble", qos: .utility)
+        let bleQueue = DispatchQueue(label: "com.kmatzen.facett.ble", qos: .utility)
         centralManager = CBCentralManager(delegate: self, queue: bleQueue)
 
         // Set up component callbacks
@@ -1990,7 +1990,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     func startDeviceQueryTimer() {
         // CRITICAL FIX: Run timer on background queue to avoid blocking main thread during keyboard presentation
-        let bleQueue = DispatchQueue(label: "com.gopro.ble.timer", qos: .utility)
+        let bleQueue = DispatchQueue(label: "com.kmatzen.facett.ble.timer", qos: .utility)
         bleQueue.async {
             DispatchQueue.main.async {
                 self.deviceQueryTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
@@ -2024,7 +2024,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     func startDeviceScanTimer() {
         // CRITICAL FIX: Run scan timer operations on background queue to avoid blocking main thread
-        let bleQueue = DispatchQueue(label: "com.gopro.ble.scan", qos: .utility)
+        let bleQueue = DispatchQueue(label: "com.kmatzen.facett.ble.scan", qos: .utility)
         DispatchQueue.main.async {
             self.deviceScanTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { [weak self] _ in
                 guard let self = self else { return }

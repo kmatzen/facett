@@ -8,7 +8,7 @@ class ConfigManager: ObservableObject {
     @Published var autoSyncEnabled: Bool = false
     @Published var isAutoSyncing: Bool = false
     private var syncInProgress: Bool = false // Internal sync state tracking
-    private let syncQueue = DispatchQueue(label: "com.gopro.sync", qos: .userInitiated)
+    private let syncQueue = DispatchQueue(label: "com.kmatzen.facett.sync", qos: .userInitiated)
 
     private let userDefaults = UserDefaults.standard
     private let configsKey = "CameraConfigs"
