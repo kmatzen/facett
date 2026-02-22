@@ -20,6 +20,9 @@ jobs:
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
 
+      - name: List available simulators
+        run: xcrun simctl list devices available | head -40
+
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -project Facett.xcodeproj -scheme Facett
 
@@ -29,7 +32,7 @@ jobs:
           xcodebuild test \
             -project Facett.xcodeproj \
             -scheme Facett \
-            -destination "platform=iOS Simulator,OS=latest,name=iPhone 16 Pro Max" \
+            -destination "platform=iOS Simulator,name=iPhone 16 Pro Max" \
             -only-testing:FacettUITests/SnapshotTests \
             -resultBundlePath TestResults \
             2>&1 | xcbeautify
