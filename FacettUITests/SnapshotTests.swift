@@ -9,6 +9,7 @@ final class SnapshotTests: XCTestCase {
         super.setUp()
         continueAfterFailure = false
         app = XCUIApplication()
+        app.launchArguments += ["-DEMO_MODE"]
         setupSnapshot(app)
         app.launch()
     }
