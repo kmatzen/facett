@@ -184,16 +184,22 @@ class BLEPacketReconstructor {
             "peripheral_id": peripheralId
         ])
 
-        // Find the buffer for this peripheral (we don't know the query ID yet)
         let bufferKeys = continuationBuffer.keys.filter { $0.hasPrefix(peripheralId) }
 
         if bufferKeys.isEmpty {
-            // This might be the first packet of a multipart response
             return handleFirstPacketOfMultipart(data: data, peripheralId: peripheralId)
         }
 
-        // Track sequence counters for multiple concurrent operations
-        guard let bufferKey = bufferKeys.first else {
+        // When multiple buffers exist, pick the most recently active one.
+        // Continuation packets don't carry a query ID, so we use recency
+        // as the best heuristic. The GoPro BLE protocol expects one
+        // multipart response per characteristic at a time.
+        let bufferKey: String
+        if bufferKeys.count == 1 {
+            bufferKey = bufferKeys[0]
+        } else if let mostRecent = bufferKeys.max(by: { (lastPacketTime[$0] ?? .distantPast) < (lastPacketTime[$1] ?? .distantPast) }) {
+            bufferKey = mostRecent
+        } else {
             ErrorHandler.bleError("No buffer key found for continuation packet", context: ["peripheral_id": peripheralId])
             return nil
         }
