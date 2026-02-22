@@ -70,7 +70,7 @@ enum DemoDataProvider {
         DemoCamera(uuid: UUID(), name: "GoPro 6287", serial: "GP6287",
                    battery: 51, sdRemaining: 31_000_000, isEncoding: true, encodingDuration: 127),
         DemoCamera(uuid: UUID(), name: "GoPro 9520", serial: "GP9520",
-                   battery: 78, sdRemaining: 72_000_000, isEncoding: true, encodingDuration: 127),
+                   battery: 78, sdRemaining: 72_000_000, isEncoding: true, encodingDuration: 127)
     ]
 
     static func populate(bleManager: BLEManager, cameraGroupManager: CameraGroupManager, configManager: ConfigManager) {
@@ -107,7 +107,7 @@ enum DemoDataProvider {
         let extraCameras: [(name: String, serial: String, battery: Int)] = [
             ("GoPro 1122", "GP1122", 45),
             ("GoPro 3344", "GP3344", 90),
-            ("GoPro 5566", "GP5566", 62),
+            ("GoPro 5566", "GP5566", 62)
         ]
         for extra in extraCameras {
             let uuid = UUID()

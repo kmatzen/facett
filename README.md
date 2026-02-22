@@ -22,7 +22,7 @@ Facett is built for multi-camera shoots — connect a fleet of GoPros, organize 
 
 - iOS 16.6+
 - iPhone or iPad with Bluetooth 4.0+
-- GoPro Hero 9 or later (GoPro Labs firmware recommended)
+- GoPro® HERO10 Black with GoPro Labs firmware (tested configuration; other models may work but are not officially supported)
 - Xcode 15+
 
 ## Building
@@ -61,3 +61,7 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 ## License
 
 [MIT](LICENSE) — Kevin Blackburn-Matzen
+
+---
+
+This product and/or service is not affiliated with, endorsed by or in any way associated with GoPro Inc. or its products and services. GoPro, HERO and their respective logos are trademarks or registered trademarks of GoPro, Inc.
