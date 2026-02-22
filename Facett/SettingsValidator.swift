@@ -218,6 +218,7 @@ class SettingsValidator {
         try validateSettingsData(settings)
     }
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     private func validateSettingsData(_ settings: any SettingsProtocol) throws {
         var errors: [SettingsValidationError] = []
 
@@ -460,6 +461,7 @@ class SettingsValidator {
     }
 
     // MARK: - Get Valid Options
+    // swiftlint:disable:next cyclomatic_complexity
     func getValidOptions(for setting: String) -> [Int] {
         switch setting {
         case "videoResolution":
