@@ -60,6 +60,16 @@ class BLEPacketReconstructor {
         lastPacketTime.removeAll()
     }
 
+    /// Clear buffers for a specific peripheral
+    func clearBuffers(for peripheralId: String) {
+        let keysToRemove = continuationBuffer.keys.filter { $0.hasPrefix(peripheralId) }
+        for key in keysToRemove {
+            continuationBuffer.removeValue(forKey: key)
+            expectedMessageLength.removeValue(forKey: key)
+            lastPacketTime.removeValue(forKey: key)
+        }
+    }
+
     /// Get current buffer state (useful for testing)
     func getBufferState() -> (buffers: [String: Data], expectedLengths: [String: Int]) {
         return (continuationBuffer, expectedMessageLength)
