@@ -75,6 +75,7 @@ struct ManagementButtonsView: View {
     @Binding var showingConfigManagement: Bool
     @Binding var showingVoiceNotificationSettings: Bool
     @Binding var showingBugReportForm: Bool
+    @Binding var showingAbout: Bool
 
     var body: some View {
         VStack(spacing: 12) {
@@ -111,6 +112,16 @@ struct ManagementButtonsView: View {
                     icon: "exclamationmark.triangle.fill",
                     color: .red,
                     action: { showingBugReportForm = true }
+                )
+            }
+
+            HStack(spacing: 12) {
+                ManagementButton(
+                    title: "About",
+                    subtitle: "Info & Legal",
+                    icon: "info.circle.fill",
+                    color: .gray,
+                    action: { showingAbout = true }
                 )
             }
         }
