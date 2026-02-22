@@ -245,11 +245,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             return // Command already completed or removed
         }
 
-        log("⏰ Command timeout for '\(commandName)' to \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        log("Command timeout for '\(commandName)' to \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
 
         // Check if we should retry
         if pendingCommand.retryCount < commandRetryAttempts {
-            log("🔄 Retrying command '\(commandName)' (attempt \(pendingCommand.retryCount + 1)/\(commandRetryAttempts))")
+            log("Retrying command '\(commandName)' (attempt \(pendingCommand.retryCount + 1)/\(commandRetryAttempts))")
 
             // Remove the old pending command
             removePendingCommand(command, from: uuid)
@@ -270,18 +270,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 self?.sendCommand(command, to: uuid, commandName: commandName, requiresControl: pendingCommand.requiresControl)
             }
         } else {
-            log("❌ Command '\(commandName)' failed after \(commandRetryAttempts) attempts")
+            log("Command '\(commandName)' failed after \(commandRetryAttempts) attempts")
             removePendingCommand(command, from: uuid)
         }
     }
 
     /// Add a command to the queue with priority-based ordering
     private func queueCommand(_ command: [UInt8], commandName: String, to uuid: UUID, requiresControl: Bool = false, priority: CommandPriority = .normal) {
-        log("📋 Queuing command: \(commandName) (priority: \(priority)) for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        ErrorHandler.debug("Queuing command: \(commandName) (priority: \(priority)) for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
 
         // Check queue size limit
         if let currentQueue = commandQueues[uuid], currentQueue.count >= maxQueueSize {
-            log("⚠️ Command queue full for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), dropping command: \(commandName)")
+            log("Command queue full for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), dropping command: \(commandName)")
             return
         }
 
@@ -307,24 +307,24 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 }
             }
             commandQueues[uuid]?.insert(queuedCommand, at: insertIndex)
-            log("📝 Command inserted at index \(insertIndex), queue now has \(commandQueues[uuid]?.count ?? 0) commands")
+            ErrorHandler.debug("Command inserted at index \(insertIndex), queue now has \(commandQueues[uuid]?.count ?? 0) commands")
         } else {
             commandQueues[uuid] = [queuedCommand]
-            log("📝 First command added to queue, queue now has 1 command")
+            ErrorHandler.debug("First command added to queue, queue now has 1 command")
         }
 
         // Start queue processing timer if not already running
         if commandQueueTimers[uuid] == nil {
-            log("🚀 Starting timer for new queue")
+            ErrorHandler.debug("Starting timer for new queue")
             startCommandQueueTimer(for: uuid)
         } else {
-            log("⏰ Timer already running for this camera")
+            ErrorHandler.debug("Timer already running for this camera")
         }
     }
 
     /// Start the command queue processing timer for a specific camera
     private func startCommandQueueTimer(for uuid: UUID) {
-        log("⏰ Starting command queue timer for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        ErrorHandler.debug("Starting command queue timer for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
 
         // Ensure timer is created on main thread and added to main run loop
         DispatchQueue.main.async { [weak self] in
@@ -333,30 +333,30 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 self?.processCommandQueue(for: uuid)
             }
             self.commandQueueTimers[uuid] = timer
-            log("✅ Timer created and scheduled for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+            ErrorHandler.debug("Timer created and scheduled for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
         }
     }
 
     /// Process the command queue for a specific camera
     private func processCommandQueue(for uuid: UUID) {
-        log("🔄 Processing command queue for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        ErrorHandler.debug("Processing command queue for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
 
         guard let queue = commandQueues[uuid] else {
-            log("❌ No command queue found for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+            log("No command queue found for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
             commandQueueTimers[uuid]?.invalidate()
             commandQueueTimers[uuid] = nil
             return
         }
 
         guard !queue.isEmpty else {
-            log("📭 Queue is empty for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), stopping timer")
+            ErrorHandler.debug("Queue is empty for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), stopping timer")
             // Queue is empty, stop the timer
             commandQueueTimers[uuid]?.invalidate()
             commandQueueTimers[uuid] = nil
             return
         }
 
-        log("📋 Queue has \(queue.count) commands for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        ErrorHandler.debug("Queue has \(queue.count) commands for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
 
         // Get the highest priority command
         guard let nextCommand = queue.first else { return }
@@ -375,7 +375,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             let now = Date()
             let lastLogTime = lastRateLimitLogTime[uuid] ?? Date.distantPast
             if now.timeIntervalSince(lastLogTime) > 5.0 { // Log at most once every 5 seconds
-                log("⏸️ Rate limit reached for \(CameraIdentityManager.shared.getDisplayName(for: uuid)) - \(recentCommands.count)/\(Int(maxCommandsPerSecond)) commands in last second")
+                ErrorHandler.debug("Rate limit reached for \(CameraIdentityManager.shared.getDisplayName(for: uuid)) - \(recentCommands.count)/\(Int(maxCommandsPerSecond)) commands in last second")
                 lastRateLimitLogTime[uuid] = now
             }
             return
@@ -385,43 +385,43 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         commandQueues[uuid]?.removeFirst()
 
         // Send the command
-        log("🚀 Processing queued command: \(nextCommand.commandName) (priority: \(nextCommand.priority))")
+        ErrorHandler.debug("Processing queued command: \(nextCommand.commandName) (priority: \(nextCommand.priority))")
         sendCommandDirectly(nextCommand.command, to: uuid, commandName: nextCommand.commandName, requiresControl: nextCommand.requiresControl)
     }
 
     /// Send a command directly (bypasses queue, used by queue processor)
     private func sendCommandDirectly(_ command: [UInt8], to uuid: UUID, commandName: String, requiresControl: Bool = false) {
         guard let gopro = connectedGoPros[uuid] else {
-            log("❌ Camera not found for direct command: \(commandName)")
+            log("Camera not found for direct command: \(commandName)")
             return
         }
 
         // Validate peripheral state before sending command
         guard gopro.peripheral.state == .connected else {
-            log("❌ Cannot send direct command to \(gopro.peripheral.name ?? "device") - peripheral state: \(gopro.peripheral.state.rawValue)")
+            log("Cannot send direct command to \(gopro.peripheral.name ?? "device") - peripheral state: \(gopro.peripheral.state.rawValue)")
             return
         }
 
         // If this command requires having control, check and log if we don't have it
         if requiresControl && !gopro.hasControl {
-            log("❌ Command requires control but camera doesn't have control: \(commandName)")
+            log("Command requires control but camera doesn't have control: \(commandName)")
             return
         }
 
         guard let characteristic = findCharacteristic(for: gopro.peripheral, uuid: Constants.UUIDs.command) else {
-            log("❌ Command characteristic not found for \(gopro.peripheral.name ?? "a device")")
+            log("Command characteristic not found for \(gopro.peripheral.name ?? "a device")")
             return
         }
 
         addPendingCommand(command, commandName: commandName, to: uuid, timeout: defaultCommandTimeout, requiresControl: requiresControl)
 
-        log("📡 Writing command to peripheral: \(commandName)")
+        ErrorHandler.debug("Writing command to peripheral: \(commandName)")
         bleCommandQueue.async {
             gopro.peripheral.writeValue(Data(command), for: characteristic, type: .withResponse)
         }
 
 
-        log("📤 Sent \(commandName) command to \(gopro.peripheral.name ?? "a device")")
+        ErrorHandler.debug("Sent \(commandName) command to \(gopro.peripheral.name ?? "a device")")
     }
 
     // MARK: - Connection Retry Helpers
@@ -706,7 +706,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         description: String
     ) {
         guard peripheral.state == .connected else {
-            log("❌ Cannot send command to \(peripheral.name ?? "device") - peripheral state: \(peripheral.state.rawValue)")
+            log("Cannot send command to \(peripheral.name ?? "device") - peripheral state: \(peripheral.state.rawValue)")
             return
         }
 
@@ -718,7 +718,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         bleCommandQueue.async {
             peripheral.writeValue(Data(command), for: characteristic, type: .withResponse)
         }
-        log("Sent \(description) command to \(peripheral.name ?? "a device"). Command: \(command)")
+        ErrorHandler.debug("Sent \(description) command to \(peripheral.name ?? "a device"). Command: \(command)")
     }
 
     // MARK: - AP Commands
@@ -846,7 +846,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             self?.connectedGoPros[uuid]?.status.lastTimeSyncDate = now
         }
 
-        log("Sent Set Date Time command to \(CameraIdentityManager.shared.getDisplayName(for: uuid)). Date: \(year)-\(month)-\(day) \(hour):\(minute):\(second)")
+        ErrorHandler.debug("Sent Set Date Time command to \(CameraIdentityManager.shared.getDisplayName(for: uuid)). Date: \(year)-\(month)-\(day) \(hour):\(minute):\(second)")
     }
 
     // MARK: - CBCentralManagerDelegate Conformance
@@ -896,7 +896,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     ) {
         let cameraName = CameraIdentityManager.shared.getDisplayName(for: peripheral.identifier, currentName: peripheral.name)
         let errorDescription = error?.localizedDescription ?? "unknown error"
-        log("❌ Failed to connect to \(cameraName): \(errorDescription)")
+        log("Failed to connect to \(cameraName): \(errorDescription)")
 
         // Log error for crash reporting with enhanced context
         CrashReporter.shared.logError(
@@ -923,7 +923,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     // Retry connection
                     self.connectionRetryCount[uuid] = currentRetryCount + 1
                     let retryDelay = self.calculateRetryDelay(for: currentRetryCount + 1)
-                    self.log("🔄 Retrying connection to \(cameraName) (attempt \(currentRetryCount + 1)/\(self.maxRetryAttempts)) in \(String(format: "%.1f", retryDelay))s...")
+                    self.log("Retrying connection to \(cameraName) (attempt \(currentRetryCount + 1)/\(self.maxRetryAttempts)) in \(String(format: "%.1f", retryDelay))s...")
 
                     // Update retry status for UI on main thread
                     DispatchQueue.main.async {
@@ -936,7 +936,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     }
                 } else {
                     // Max retries reached, give up
-                    self.log("❌ Max connection retries reached for \(cameraName), giving up after \(self.maxRetryAttempts) attempts")
+                    self.log("Max connection retries reached for \(cameraName), giving up after \(self.maxRetryAttempts) attempts")
                     self.discoveredGoPros[uuid] = gopro // Move back to discovered list
                     self.connectingGoPros.removeValue(forKey: uuid) // Remove from connecting list
                     self.connectionRetryCount.removeValue(forKey: uuid)
@@ -983,14 +983,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             if let nsError = error as NSError?, nsError.domain == "CBATTErrorDomain" {
                 switch nsError.code {
                 case 5: // Authentication is insufficient
-                    log("🔐 Authentication insufficient for \(peripheral.name ?? "device"). Attempting to re-establish connection...")
+                    log("Authentication insufficient for \(peripheral.name ?? "device"). Attempting to re-establish connection...")
                     handleAuthenticationError(for: peripheral)
                 case 3: // Write not permitted
-                    log("🚫 Write not permitted for \(characteristic.uuid). May need to claim control first.")
+                    log("Write not permitted for \(characteristic.uuid). May need to claim control first.")
                 case 2: // Read not permitted
-                    log("🚫 Read not permitted for \(characteristic.uuid). May need proper authorization.")
+                    log("Read not permitted for \(characteristic.uuid). May need proper authorization.")
                 default:
-                    log("⚠️ BLE ATT Error \(nsError.code): \(error.localizedDescription)")
+                    log("BLE ATT Error \(nsError.code): \(error.localizedDescription)")
                 }
             }
             return
@@ -1006,15 +1006,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Handle specific characteristics based on UUID
         switch characteristic.uuid {
         case Constants.UUIDs.queryResponse:
-            log("🔍 QUERY RESPONSE: Processing query response for \(peripheral.name ?? "a device")")
+            ErrorHandler.debug("Processing query response for \(peripheral.name ?? "a device")")
             responseHandler.handleQueryResponse(data, for: peripheral)
 
         case Constants.UUIDs.commandResponse:
-            log("🔍 COMMAND RESPONSE: Processing command response for \(peripheral.name ?? "a device")")
+            ErrorHandler.debug("Processing command response for \(peripheral.name ?? "a device")")
             handleCommandResponse(data, for: peripheral)
 
         case Constants.UUIDs.settingsResponse:
-            log("🔍 SETTINGS RESPONSE: Processing settings response for \(peripheral.name ?? "a device")")
+            ErrorHandler.debug("Processing settings response for \(peripheral.name ?? "a device")")
             handleSettingsResponse(data, for: peripheral)
 
         // GoPro WiFi Access Point characteristics
@@ -1043,7 +1043,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             }
 
         default:
-            log("⚠️ WARNING: Received value for unknown characteristic \(characteristic.uuid).")
+            log("WARNING: Received value for unknown characteristic \(characteristic.uuid).")
         }
     }
 
@@ -1054,21 +1054,21 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let cameraName = CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)
 
         if let error = error {
-            log("❌ Write failed for \(cameraName): \(error.localizedDescription)")
+            log("Write failed for \(cameraName): \(error.localizedDescription)")
 
             // Handle specific authentication errors
             if let nsError = error as NSError?, nsError.domain == "CBATTErrorDomain" {
                 switch nsError.code {
                 case 5: // Authentication is insufficient
-                    log("🔐 Write authentication insufficient for \(cameraName). Attempting to re-establish connection...")
+                    log("Write authentication insufficient for \(cameraName). Attempting to re-establish connection...")
                     handleAuthenticationError(for: peripheral)
                     return
                 case 3: // Write not permitted
-                    log("🚫 Write not permitted for \(characteristic.uuid). May need to claim control first.")
+                    log("Write not permitted for \(characteristic.uuid). May need to claim control first.")
                 case 2: // Read not permitted
-                    log("🚫 Read not permitted for \(characteristic.uuid). May need proper authorization.")
+                    log("Read not permitted for \(characteristic.uuid). May need proper authorization.")
                 default:
-                    log("⚠️ BLE ATT Write Error \(nsError.code): \(error.localizedDescription)")
+                    log("BLE ATT Write Error \(nsError.code): \(error.localizedDescription)")
                 }
             }
 
@@ -1086,7 +1086,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
             // Handle write failure - retry if we have pending commands
             if let pendingCommandList = pendingCommands[uuid], let firstCommand = pendingCommandList.first {
-                log("🔄 Retrying write for '\(firstCommand.commandName)' to \(cameraName)")
+                log("Retrying write for '\(firstCommand.commandName)' to \(cameraName)")
 
                 // Remove the failed command from pending list
                 removePendingCommand(firstCommand.command, from: uuid)
@@ -1160,14 +1160,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             } else if data.count >= 4 {
                 // Handle other command type 1 responses
                 let subCommand = data[3]
-                log("Command type 1 sub-command response: \(subCommand)")
+                ErrorHandler.debug("Command type 1 sub-command response: \(subCommand)")
                 return
             }
         }
 
         // Handle AP command responses (command type 23)
         if commandType == 23 { // AP enable/disable command type
-            log("AP command response received for \(peripheral.name ?? "device")")
+            ErrorHandler.debug("AP command response received for \(peripheral.name ?? "device")")
             return
         }
 
@@ -1179,13 +1179,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             ErrorHandler.info(
                 "Command '\(commandName)' succeeded for \(camera.name ?? "Unknown")"
             )
-            log("Command response success for \(cameraName). Command type: \(commandType).")
+            ErrorHandler.debug("Command response success for \(cameraName). Command type: \(commandType).")
         } else {
             let errorMsg = "Command failed - type \(commandType)"
             ErrorHandler.error(
                 "Command '\(commandName)' failed for \(camera.name ?? "Unknown"): \(errorMsg)"
             )
-            log("⚠️ WARNING: Unhandled command response error for \(cameraName). Command type: \(commandType).")
+            log("WARNING: Unhandled command response error for \(cameraName). Command type: \(commandType).")
             log("Command response error for \(cameraName). Command type: \(commandType).")
         }
 
@@ -1211,25 +1211,25 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             // Claimed control
             if let gopro = connectedGoPros[peripheral.identifier] {
                 gopro.hasControl = true
-                log("Claimed control")
+                ErrorHandler.debug("Claimed control")
             }
             return true
 
         case (233, 0):
             if let gopro = connectedGoPros[peripheral.identifier] {
                 gopro.hasControl = false
-                log("Lost control")
+                ErrorHandler.debug("Lost control")
             }
             return true
 
         case (235, 1):
             // Turbo transfer enabled
-            log("Turbo transfer enabled")
+            ErrorHandler.debug("Turbo transfer enabled")
             return true
 
         case (235, 0):
             // Turbo transfer disabled
-            log("Turbo transfer disabled")
+            ErrorHandler.debug("Turbo transfer disabled")
             return true
 
         case (108, _):
@@ -1248,7 +1248,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     private func handleSettingsResponse(_ data: Data, for peripheral: CBPeripheral) {
         // Process settings response data as needed
-        log("Processed Settings Response for \(peripheral.name ?? "a device"). Data: \(data)")
+        ErrorHandler.debug("Processed Settings Response for \(peripheral.name ?? "a device"). Data: \(data)")
         verifySettings(data, for: peripheral)
 
         // Parse the response to update camera settings with actual values from the camera
@@ -1269,7 +1269,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let byteArray = response.map { String(format: "0x%02X", $0) }.joined(separator: " ")
 
         if response[2] == 0 {
-            log("\(peripheral.name ?? "Device") settings applied successfully. Response bytes: \(byteArray)")
+            ErrorHandler.debug("\(peripheral.name ?? "Device") settings applied successfully. Response bytes: \(byteArray)")
         } else {
             log("\(peripheral.name ?? "Device") settings verification failed. Response bytes: \(byteArray)")
         }
@@ -1298,7 +1298,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let currentRetries = serviceDiscoveryRetries[uuid] ?? 0
 
         if currentRetries >= maxServiceDiscoveryRetries {
-            log("❌ Max service discovery retries reached for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), giving up")
+            log("Max service discovery retries reached for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), giving up")
             serviceDiscoveryRetries.removeValue(forKey: uuid)
             return
         }
@@ -1307,7 +1307,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let delay = errorRecoveryDelay * Double(currentRetries + 1)
 
         let name = CameraIdentityManager.shared.getDisplayName(for: uuid)
-        log("🔄 Retrying service discovery for \(name) " +
+        log("Retrying service discovery for \(name) " +
             "(attempt \(currentRetries + 1)/\(maxServiceDiscoveryRetries)) in \(String(format: "%.1f", delay))s")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -1321,7 +1321,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let currentRetries = characteristicDiscoveryRetries[uuid] ?? 0
 
         if currentRetries >= maxCharacteristicDiscoveryRetries {
-            log("❌ Max characteristic discovery retries reached for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), giving up")
+            log("Max characteristic discovery retries reached for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), giving up")
             characteristicDiscoveryRetries.removeValue(forKey: uuid)
             return
         }
@@ -1330,7 +1330,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let delay = errorRecoveryDelay * Double(currentRetries + 1)
 
         let name = CameraIdentityManager.shared.getDisplayName(for: uuid)
-        log("🔄 Retrying characteristic discovery for \(name) " +
+        log("Retrying characteristic discovery for \(name) " +
             "(attempt \(currentRetries + 1)/\(maxCharacteristicDiscoveryRetries)) in \(String(format: "%.1f", delay))s")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -1344,7 +1344,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let currentRetries = commandWriteRetries[uuid] ?? 0
 
         if currentRetries >= maxCommandWriteRetries {
-            log("❌ Max command write retries reached for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), giving up on \(commandName)")
+            log("Max command write retries reached for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), giving up on \(commandName)")
             commandWriteRetries.removeValue(forKey: uuid)
             return
         }
@@ -1353,7 +1353,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let delay = errorRecoveryDelay * Double(currentRetries + 1)
 
         let name = CameraIdentityManager.shared.getDisplayName(for: uuid)
-        log("🔄 Retrying command write for \(name) " +
+        log("Retrying command write for \(name) " +
             "(attempt \(currentRetries + 1)/\(maxCommandWriteRetries)) in \(String(format: "%.1f", delay))s")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -1361,7 +1361,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
             // Validate peripheral state before retry
             guard gopro.peripheral.state == .connected else {
-                self.log("❌ Cannot retry command write to \(gopro.peripheral.name ?? "device") - peripheral state: \(gopro.peripheral.state.rawValue)")
+                self.log("Cannot retry command write to \(gopro.peripheral.name ?? "device") - peripheral state: \(gopro.peripheral.state.rawValue)")
                 return
             }
 
@@ -1375,13 +1375,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         serviceDiscoveryRetries.removeValue(forKey: uuid)
         characteristicDiscoveryRetries.removeValue(forKey: uuid)
         commandWriteRetries.removeValue(forKey: uuid)
-        log("✅ Error recovery state reset for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        ErrorHandler.debug("Error recovery state reset for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
     }
 
     /// Handle authentication errors by attempting to re-establish connection
     private func handleAuthenticationError(for peripheral: CBPeripheral) {
         let uuid = peripheral.identifier
-        log("🔐 Handling authentication error for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        log("Handling authentication error for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
 
         // Disconnect and reconnect to re-establish authentication
         centralManager.cancelPeripheralConnection(peripheral)
@@ -1390,14 +1390,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         pendingCommands[uuid]?.removeAll()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
-            self?.log("🔄 Attempting to reconnect after authentication error...")
+            self?.log("Attempting to reconnect after authentication error...")
             self?.centralManager.connect(peripheral, options: nil)
         }
     }
 
     /// Attempt to recover from control loss
     private func recoverControlLoss(for uuid: UUID) {
-        log("🔄 Attempting to recover control for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        log("Attempting to recover control for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
 
         // Try to reclaim control
         claimControl(for: uuid)
@@ -1407,7 +1407,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     /// Start connection health monitoring for a camera
     private func startConnectionHealthMonitoring(for uuid: UUID) {
-        log("🏥 Starting connection health monitoring for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        ErrorHandler.debug("Starting connection health monitoring for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
 
         // Initialize health tracking
         connectionHealthScores[uuid] = ConnectionHealth(
@@ -1428,7 +1428,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         queryResponseTimes.removeValue(forKey: uuid)
         querySuccessCounts.removeValue(forKey: uuid)
         queryFailureCounts.removeValue(forKey: uuid)
-        log("🏥 Stopped connection health monitoring for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        ErrorHandler.debug("Stopped connection health monitoring for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
     }
 
     /// Record a successful query response
@@ -1503,7 +1503,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Log health status if it's degraded
         if healthScore < 0.7 || successRate < 0.8 {
             let name = CameraIdentityManager.shared.getDisplayName(for: uuid)
-            log("⚠️ Connection health degraded for \(name): " +
+            log("Connection health degraded for \(name): " +
                 "score=\(String(format: "%.2f", healthScore)), " +
                 "success=\(Int(successRate * 100))%, " +
                 "avgTime=\(String(format: "%.1f", averageResponseTime))s, " +
@@ -1518,7 +1518,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     /// Handle connection health degradation
     private func handleConnectionHealthDegradation(for uuid: UUID, health: ConnectionHealth) {
-        log("🚨 Critical connection health degradation for \(CameraIdentityManager.shared.getDisplayName(for: uuid)): stability=\(String(format: "%.2f", health.stabilityScore))")
+        log("Critical connection health degradation for \(CameraIdentityManager.shared.getDisplayName(for: uuid)): stability=\(String(format: "%.2f", health.stabilityScore))")
 
         // Log for crash reporting
         CrashReporter.shared.logError(
@@ -1534,12 +1534,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         // Attempt recovery actions based on the issues
         if health.stabilityScore < 0.7 {
-            log("🔄 Attempting to recover from low stability for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+            log("Attempting to recover from low stability for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
             // Could trigger a reconnection or service rediscovery
         }
 
         if health.averageResponseTime > 5.0 {
-            log("🔄 Attempting to recover from slow response time for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+            log("Attempting to recover from slow response time for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
             // Could reduce query frequency or trigger optimization
         }
     }
@@ -1553,7 +1553,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private func resetConnectionHealth(for uuid: UUID) {
         stopConnectionHealthMonitoring(for: uuid)
         startConnectionHealthMonitoring(for: uuid)
-        log("🔄 Connection health reset for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        ErrorHandler.debug("Connection health reset for \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
     }
 
     // MARK: - Performance Monitoring (Delegated to BLEPerformanceMonitor)
@@ -1586,7 +1586,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             let cameraName = CameraIdentityManager.shared.getDisplayName(for: uuid)
 
             // Log performance summary
-            log("📊 Performance Report for \(cameraName): " +
+            ErrorHandler.debug("Performance Report for \(cameraName): " +
                 "commands=\(metrics.totalCommands), " +
                 "success=\(Int(metrics.successRate * 100))%, " +
                 "avgTime=\(String(format: "%.2f", metrics.averageResponseTime))s, " +
@@ -1655,7 +1655,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         if !updatedStability.isStable {
             let name = CameraIdentityManager.shared.getDisplayName(for: uuid)
-            log("⚠️ Connection stability issue for \(name): " +
+            log("Connection stability issue for \(name): " +
                 "disconnections=\(newDisconnectionCount), stability=\(String(format: "%.2f", stabilityScore))")
         }
     }
@@ -1710,7 +1710,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
 
         if centralManager.state == .poweredOn {
-            log("Scanning for GoPro devices...")
+            ErrorHandler.debug("Scanning for GoPro devices...")
             centralManager.scanForPeripherals(withServices: [Constants.UUIDs.goproService, Constants.UUIDs.goproWiFiService], options: nil)
         } else {
             log("Bluetooth is not ready.")
@@ -1728,7 +1728,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         if centralManager.state == .poweredOn {
             centralManager.stopScan()
             centralManager.scanForPeripherals(withServices: [Constants.UUIDs.goproService, Constants.UUIDs.goproWiFiService], options: nil)
-            log("🔄 Refreshed discovered cameras list")
+            ErrorHandler.debug("Refreshed discovered cameras list")
         }
     }
 
@@ -1806,18 +1806,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         // Clear sleep state when manually connecting (user wants to wake the camera)
         if deviceStateManager.isDeviceSleeping(uuid) {
-            log("🌅 Clearing sleep state for \(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)) - manual connection requested")
+            log("Clearing sleep state for \(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)) - manual connection requested")
             deviceStateManager.setDeviceSleeping(uuid, isSleeping: false)
         }
 
         // Check if peripheral is in a valid state for connection
         guard isValidForRetry(gopro.peripheral) else {
-            log("❌ Cannot connect to \(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)) - peripheral not in valid state")
+            log("Cannot connect to \(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)) - peripheral not in valid state")
             return
         }
 
         let cameraName = CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)
-        log("🔗 Connecting to \(cameraName)...")
+        log("Connecting to \(cameraName)...")
         gopro.peripheral.delegate = self
 
         // Use connection manager for retry logic
@@ -1839,7 +1839,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         guard let gopro = connectingGoPros[uuid] else { return }
 
         let cameraName = CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)
-        log("⏰ Connection timeout for \(cameraName) after \(connectionTimeout)s")
+        log("Connection timeout for \(cameraName) after \(connectionTimeout)s")
 
         CrashReporter.shared.logError(
             "BLE Connection Timeout",
@@ -1873,13 +1873,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         // Check if device was intentionally put to sleep - don't retry if so
         if deviceStateManager.isDeviceSleeping(uuid) {
-            log("🌙 Device \(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)) is sleeping - skipping retry")
+            log("Device \(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)) is sleeping - skipping retry")
             return
         }
 
         // Check if peripheral is in a valid state for retry
         guard isValidForRetry(gopro.peripheral) else {
-            log("❌ Cannot retry connection to \(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)) - peripheral not in valid state")
+            log("Cannot retry connection to \(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)) - peripheral not in valid state")
             return
         }
 
@@ -1955,7 +1955,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         connectionAttemptTimers.removeValue(forKey: uuid)
         connectionRetryCount.removeValue(forKey: uuid)
 
-        log("💤 Sending camera to sleep: \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
+        log("Sending camera to sleep: \(CameraIdentityManager.shared.getDisplayName(for: uuid))")
 
         sendCommand(sleepCommand, to: gopro, actionDescription: "Sending to sleep")
 
@@ -2142,7 +2142,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         bleCommandQueue.async {
             peripheral.writeValue(Data(command), for: characteristic, type: .withResponse)
         }
-        log("Requested \(description) for \(peripheral.name ?? "a device"). Command: \(command).")
+        ErrorHandler.debug("Requested \(description) for \(peripheral.name ?? "a device"). Command: \(command).")
     }
 
     private func queryAllSettings(from peripheral: PeripheralContainer) {
@@ -2285,24 +2285,24 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
 
         if !stragglers.isEmpty {
-            log("🔄 Found \(stragglers.count) straggler cameras, attempting to reconnect...")
+            log("Found \(stragglers.count) straggler cameras, attempting to reconnect...")
 
             for cameraId in stragglers {
                 let currentRetryCount = stragglerRetryCount[cameraId] ?? 0
 
                 if currentRetryCount < maxStragglerRetries {
                     stragglerRetryCount[cameraId] = currentRetryCount + 1
-                    log("🔄 Retrying straggler camera \(CameraIdentityManager.shared.getDisplayName(for: cameraId)) (attempt \(currentRetryCount + 1)/\(maxStragglerRetries))")
+                    log("Retrying straggler camera \(CameraIdentityManager.shared.getDisplayName(for: cameraId)) (attempt \(currentRetryCount + 1)/\(maxStragglerRetries))")
                     connectToGoPro(uuid: cameraId)
                 } else {
-                    log("❌ Giving up on straggler camera \(CameraIdentityManager.shared.getDisplayName(for: cameraId)) after \(maxStragglerRetries) attempts")
+                    log("Giving up on straggler camera \(CameraIdentityManager.shared.getDisplayName(for: cameraId)) after \(maxStragglerRetries) attempts")
                     // Remove from target cameras if we've given up
                     targetConnectedCameras.remove(cameraId)
                 }
             }
         } else {
             // All target cameras are connected or connecting, stop the timer
-            log("✅ All target cameras connected, stopping straggler retry timer")
+            log("All target cameras connected, stopping straggler retry timer")
             stopStragglerRetryTimer()
             logConnectionSummary()
         }
@@ -2330,7 +2330,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let totalConnecting = connectingGoPros.count
         let totalFailed = totalDiscovered - totalConnected - totalConnecting
 
-        log("📊 Connection Summary: \(totalConnected) connected, \(totalConnecting) connecting, \(totalFailed) failed out of \(totalDiscovered) discovered")
+        log("Connection Summary: \(totalConnected) connected, \(totalConnecting) connecting, \(totalFailed) failed out of \(totalDiscovered) discovered")
 
         if totalFailed > 0 {
             let failedCameras = discoveredGoPros.keys.filter { uuid in
@@ -2340,7 +2340,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             for uuid in failedCameras {
                 let cameraName = CameraIdentityManager.shared.getDisplayName(for: uuid)
                 let retryCount = connectionRetryCount[uuid] ?? 0
-                log("❌ Failed: \(cameraName) (retries: \(retryCount)/\(maxRetryAttempts))")
+                log("Failed: \(cameraName) (retries: \(retryCount)/\(maxRetryAttempts))")
             }
         }
     }
@@ -2456,7 +2456,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         bleCommandQueue.async {
             peripheral.writeValue(data, for: characteristic, type: .withResponse)
         }
-        log("Sent setting ID \(id) with value \(value) to \(peripheral.name ?? "a device"). Command: \(command)")
+        ErrorHandler.debug("Sent setting ID \(id) with value \(value) to \(peripheral.name ?? "a device"). Command: \(command)")
     }
 
     func configureAllDevices() {

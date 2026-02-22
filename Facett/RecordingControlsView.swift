@@ -307,7 +307,7 @@ struct RecordingControlsView: View {
         )
         .onChange(of: allCamerasOnlineAndInSync) { newValue in
             if isAnyCameraRecording && !newValue {
-                ErrorHandler.info("🛑 Auto-stopping recording: cameras went offline or out of sync")
+                ErrorHandler.info("Auto-stopping recording: cameras went offline or out of sync")
                 bleManager.stopRecordingForCamerasInSet(effectiveGroup.cameraSerials)
             }
             previouslyAllOnlineAndInSync = newValue

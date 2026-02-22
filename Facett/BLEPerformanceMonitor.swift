@@ -368,7 +368,7 @@ class BLEPerformanceMonitor: ObservableObject {
         connectionStability.removeValue(forKey: uuid)
         commandStartTimes.removeValue(forKey: uuid)
 
-        ErrorHandler.info("📊 Reset performance metrics for device \(uuid)")
+        ErrorHandler.debug("Reset performance metrics for device \(uuid)")
     }
 }
 

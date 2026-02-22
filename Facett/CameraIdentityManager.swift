@@ -26,7 +26,7 @@ class CameraIdentityManager: ObservableObject {
         if cameraNames[serial] != name {
             cameraNames[serial] = name
             saveCameraNames()
-            ErrorHandler.info("📝 Stored camera name '\(name)' for camera \(serial)")
+            ErrorHandler.debug("Stored camera name '\(name)' for camera \(serial)")
         }
     }
 
@@ -63,7 +63,7 @@ class CameraIdentityManager: ObservableObject {
     func removeCameraName(forSerial serial: String) {
         cameraNames.removeValue(forKey: serial)
         saveCameraNames()
-        ErrorHandler.info("🗑️ Removed stored name for camera \(serial)")
+        ErrorHandler.debug("Removed stored name for camera \(serial)")
     }
 
     /// Get all stored camera names
@@ -124,7 +124,7 @@ class CameraSerialResolver {
         if serialToUUID[serial] != uuid {
             serialToUUID[serial] = uuid
             saveMappings()
-            ErrorHandler.info("📍 Updated UUID mapping for camera \(serial) to \(uuid.uuidString.prefix(8))...")
+            ErrorHandler.debug("Updated UUID mapping for camera \(serial) to \(uuid.uuidString.prefix(8))...")
         }
     }
 
@@ -137,7 +137,7 @@ class CameraSerialResolver {
     func removeMapping(forSerial serial: String) {
         serialToUUID.removeValue(forKey: serial)
         saveMappings()
-        ErrorHandler.info("🗑️ Removed UUID mapping for camera \(serial)")
+        ErrorHandler.debug("Removed UUID mapping for camera \(serial)")
     }
 
     /// Get all serial -> UUID mappings
