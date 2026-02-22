@@ -1,8 +1,10 @@
 # State Machines & Status Logic
 
-Facett uses a mix of state machines (sections 1, 4–8) and priority-based status evaluations (sections 2–3). This document describes the states, transitions, and interactions — see the source code for implementation details.
+This document describes how Facett tracks device state, camera status, and command lifecycle. Some of these are true state machines with tracked transitions; others are stateless priority evaluations computed on the fly.
 
-## 1. BLE Device Lifecycle
+## 1. BLE Device Lifecycle (state machine)
+
+Devices move between three tracked collections as their BLE connection state changes:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -25,9 +27,9 @@ Facett uses a mix of state machines (sections 1, 4–8) and priority-based statu
 - **Failed** — max retries reached; device returns to Discovered on rediscovery
 - **Disconnected** — connection lost; device returns to Discovered on rediscovery
 
-## 2. Camera Operational Status
+## 2. Camera Operational Status (priority evaluation)
 
-This is **not** a state machine — it's a priority-based evaluation. The code checks conditions top-to-bottom and returns the first match:
+Not a state machine — computed on the fly by `CameraGroup.getCameraStatus(_:bleManager:)`. The code checks conditions top-to-bottom and returns the first match:
 
 ```
 hasReceivedInitialStatus == false?  ──▶  Initializing
@@ -40,13 +42,11 @@ isReady == true?                    ──▶  Ready
 (none of the above)                 ──▶  Error
 ```
 
-A camera can match multiple conditions simultaneously — the one listed highest wins. For example, an overheating camera that is also recording will show as **Overheating**, not Recording.
+A camera can match multiple conditions simultaneously — the one listed highest wins.
 
-See `CameraGroup.getCameraStatus(_:bleManager:)`.
+## 3. Camera Group Status (priority evaluation)
 
-## 3. Camera Group Status
-
-Also a priority evaluation, not a state machine. Aggregates individual camera statuses into a single group status:
+Also computed on the fly by `GroupStatus.overallStatus`. Aggregates individual camera statuses:
 
 ```
 any camera has error?               ──▶  Error
@@ -58,65 +58,46 @@ all cameras ready?                  ──▶  Ready
 (otherwise)                         ──▶  Settings Mismatch
 ```
 
-See `GroupStatus.overallStatus`.
+## 4. Camera Control (boolean flag)
 
-## 4. Control
+Each `GoPro` object has a `hasControl` boolean. It is set to `true` when a claim-control command response succeeds, and `false` when a control-loss notification arrives.
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  No Control     │───▶│ Claiming Control│───▶│  Has Control    │
-│(hasControl=false)│   │                 │   │(hasControl=true) │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         ▲                       │                       │
-         │                       ▼                       ▼
-         │              ┌─────────────────┐    ┌─────────────────┐
-         │              │  Lost Control   │    │Releasing Control│
-         │              │(controlId != 2) │    │                 │
-         │              └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┴───────────────────────┘
-```
+- `claimControl(for:)` sends a Protobuf command; the response handler sets `hasControl = true`
+- `releaseControl(for:)` sends the release command; the response handler sets `hasControl = false`
+- Control-loss notifications from the camera also set `hasControl = false`
+- Commands that require control (recording, settings) check `hasControl` before sending
 
-- Must have control (`hasControl = true`, `cameraControlId = 2`) to send recording or settings commands
-- Control is automatically reclaimed when lost
+There is no intermediate "claiming" or "releasing" state tracked in code — the flag flips when the response arrives.
 
-## 5. Settings Synchronization
+## 5. Settings Sync (fire-and-forget)
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│     Synced      │───▶│    Syncing      │───▶│   Validating    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         ▲                       │                       │
-         │                       ▼                       ▼
-         │              ┌─────────────────┐    ┌─────────────────┐
-         │              │    Mismatch     │    │      Error      │
-         │              └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┴───────────────────────┘
-```
+There is no settings sync state machine. The actual flow is:
 
-- Cannot sync while recording
-- Must have control to send settings
-- Mismatch detection compares critical settings (resolution, FPS, auto power down, GPS, hypersmooth, quick capture)
+1. User taps "Apply Settings" → `sendSettingsToCamerasInGroup()` writes BLE commands to each camera
+2. Each camera processes the commands independently and responds
+3. Camera settings are updated from responses as they arrive
+4. Separately, `ConfigValidation.hasSettingsMismatch()` compares current settings to target — this is called at display time, not tracked as state
 
-## 6. Command Response
+Preconditions: must have control, camera must not be recording. Compared settings: resolution, FPS, auto power down, GPS, hypersmooth, quick capture.
+
+## 6. Command Lifecycle (state machine)
+
+Commands are tracked in `pendingCommands: [UUID: [PendingCommand]]`:
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Command Sent   │───▶│  Response Wait  │───▶│Response Received│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │
-                                ▼
-                       ┌─────────────────┐
-                       │    Timeout      │
-                       └─────────────────┘
+Command Sent  ───▶  Waiting (in pendingCommands)  ───▶  Response Received (removed)
+                              │
+                              ├──▶  Timeout (retried up to 2 times, then removed)
+                              │
+                              └──▶  BLE error (retried or removed)
 ```
 
-- Commands tracked in `pendingCommands` until response or timeout (3–5 seconds)
+- Default timeout: 5 seconds
+- Retry attempts: 2
 
 ## 7. Straggler Connection Management
 
-Handles cameras that fail to connect during bulk "Connect All" operations.
+Handles cameras that fail to connect during bulk "Connect All" operations. Tracked via `stragglerRetryCount` and a repeating timer.
 
 - **Retry interval**: 15 seconds
 - **Max retries**: 5 per straggler
@@ -124,19 +105,18 @@ Handles cameras that fail to connect during bulk "Connect All" operations.
 
 ## 8. Sleep / Power Down
 
+A short sequential flow tracked via `pendingSleepCommands` / `pendingPowerDownCommands` sets:
+
 1. Release control → 0.5 s delay → send sleep/power-down command
 2. Wait up to 3 seconds for response
 3. Disconnect (on response or timeout)
 
-Tracked via `pendingSleepCommands` / `pendingPowerDownCommands` sets.
+## Interactions
 
-## State Machine Interactions
-
-1. **Connection** affects **Operational Status** — must be connected to be ready
-2. **Control** affects **Sync** — must have control to send settings
-3. **Recording** affects **Sync** — cannot sync while recording
-4. **Stragglers** affect **Group Status** — stragglers prevent group from being fully ready
-5. **Commands** affect **All** — commands can change any camera state
+1. **Connection** → **Status**: must be connected to have any operational status
+2. **Control** → **Settings**: must have control to send settings
+3. **Recording** → **Settings**: cannot sync while recording
+4. **Stragglers** → **Group Status**: stragglers prevent group from being fully ready
 
 ## Debugging Tips
 
@@ -146,4 +126,4 @@ Tracked via `pendingSleepCommands` / `pendingPowerDownCommands` sets.
 4. Check `pendingCommands` for stuck commands
 5. Check retry counts and straggler state for bulk operations
 
-See `StateMachineTests.swift` for comprehensive test coverage.
+See `StateMachineTests.swift` for test coverage of the priority evaluations.
