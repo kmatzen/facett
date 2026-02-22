@@ -48,12 +48,9 @@ Build and run the `Facett` scheme targeting an iOS Simulator or physical device.
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — System design and component overview
-- [API_REFERENCE.md](API_REFERENCE.md) — Public API documentation
 - [BLE_PROTOCOL.md](BLE_PROTOCOL.md) — GoPro BLE protocol details
 - [STATE_MACHINES.md](STATE_MACHINES.md) — State machine documentation
-- [TESTING.md](TESTING.md) — Testing strategy and guidelines
 - [CRASH_REPORTING.md](CRASH_REPORTING.md) — Crash reporting system
-- [CAMERA_UUID_MIGRATION.md](CAMERA_UUID_MIGRATION.md) — Camera serial-based identity system
 
 ## Contributing
 
