@@ -41,4 +41,34 @@ jobs:
             -only-testing:FacettTests/GoProCommandTests \
             -only-testing:FacettTests/SettingsTests \
             -only-testing:FacettTests/StateMachineTests \
-            -quiet
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult
+
+      - name: Code Coverage Summary
+        if: always()
+        run: |
+          if [ -d TestResults.xcresult ]; then
+            xcrun xccov view --report --json TestResults.xcresult > coverage.json
+            echo "## Code Coverage" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            python3 -c "
+          import json, sys
+          with open('coverage.json') as f:
+              data = json.load(f)
+          targets = data.get('targets', [])
+          for t in targets:
+              name = t.get('name', '')
+              if name == 'Facett.app':
+                  pct = t.get('lineCoverage', 0) * 100
+                  print(f'**{name}**: {pct:.1f}% line coverage')
+                  sys.stdout.flush()
+                  files = t.get('files', [])
+                  covered = [(f['name'], f['lineCoverage'] * 100) for f in files if f.get('lineCoverage', 0) > 0]
+                  covered.sort(key=lambda x: -x[1])
+                  print()
+                  print('| File | Coverage |')
+                  print('|------|----------|')
+                  for fname, cov in covered[:20]:
+                      print(f'| {fname} | {cov:.1f}% |')
+          " >> $GITHUB_STEP_SUMMARY
+          fi
