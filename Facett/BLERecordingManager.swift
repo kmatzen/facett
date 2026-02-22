@@ -114,36 +114,48 @@ class BLERecordingManager {
         }
     }
 
+    private let recordingStaggerDelay: TimeInterval = 0.05
+
     /// Start recording for cameras in a specific set
     func startRecordingForCamerasInSet(_ cameraIds: Set<UUID>) {
         guard let bleManager = bleManager else { return }
         let cameraCount = cameraIds.count
-        // Provide haptic feedback and voice notification for batch recording start
         DispatchQueue.main.async {
             self.recordingStartedHaptic()
             VoiceNotificationManager.shared.notifyRecordingStarted(cameraCount: cameraCount)
         }
 
-        bleManager.connectedGoPros.forEach { uuid, gopro in
-            if cameraIds.contains(uuid) {
-                startRecording(for: gopro.peripheral.identifier)
-            }
-        }
+        let cameras = bleManager.connectedGoPros.filter { cameraIds.contains($0.key) }
+        sendStaggered(cameras: Array(cameras.values), action: { [weak self] uuid in
+            self?.startRecording(for: uuid)
+        })
     }
 
     /// Stop recording for cameras in a specific set
     func stopRecordingForCamerasInSet(_ cameraIds: Set<UUID>) {
         guard let bleManager = bleManager else { return }
         let cameraCount = cameraIds.count
-        // Provide haptic feedback and voice notification for batch recording stop
         DispatchQueue.main.async {
             self.recordingStoppedHaptic()
             VoiceNotificationManager.shared.notifyRecordingStopped(cameraCount: cameraCount)
         }
 
-        bleManager.connectedGoPros.forEach { uuid, gopro in
-            if cameraIds.contains(uuid) {
-                stopRecording(for: gopro.peripheral.identifier)
+        let cameras = bleManager.connectedGoPros.filter { cameraIds.contains($0.key) }
+        sendStaggered(cameras: Array(cameras.values), action: { [weak self] uuid in
+            self?.stopRecording(for: uuid)
+        })
+    }
+
+    private func sendStaggered(cameras: [GoPro], action: @escaping (UUID) -> Void) {
+        for (index, gopro) in cameras.enumerated() {
+            let delay = TimeInterval(index) * recordingStaggerDelay
+            let uuid = gopro.peripheral.identifier
+            if delay == 0 {
+                action(uuid)
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    action(uuid)
+                }
             }
         }
     }

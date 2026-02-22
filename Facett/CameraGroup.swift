@@ -101,28 +101,28 @@ struct GroupStatus {
     let recordingCameras: Int
     let connectingCameras: Int
     let initializingCameras: Int
+    let settingsMismatchCameras: Int
+    let modeMismatchCameras: Int
 
     var overallStatus: CameraStatus {
         if errorCameras > 0 {
             return .error
         } else if recordingCameras > 0 {
-            // If any cameras are recording, show recording status
             return .recording
         } else if connectingCameras > 0 {
-            // If any cameras are actively connecting, show connecting status
             return .connecting
         } else if initializingCameras > 0 {
-            // If any cameras are initializing, show initializing status
             return .initializing
-        } else if readyCameras == totalCameras {
-            return .ready
-        } else if disconnectedCameras == totalCameras {
-            return .disconnected
-        } else if disconnectedCameras > 0 {
-            // If some cameras are disconnected, show settings mismatch
+        } else if settingsMismatchCameras > 0 {
             return .settingsMismatch
+        } else if modeMismatchCameras > 0 {
+            return .modeMismatch
+        } else if readyCameras + recordingCameras == totalCameras {
+            return .ready
+        } else if disconnectedCameras > 0 && readyCameras > 0 {
+            return .connecting
         } else {
-            return .error // Fallback for unexpected states
+            return .disconnected
         }
     }
 
@@ -143,6 +143,12 @@ struct GroupStatus {
         }
         if initializingCameras > 0 {
             parts.append("\(initializingCameras) initializing")
+        }
+        if settingsMismatchCameras > 0 {
+            parts.append("\(settingsMismatchCameras) mismatched")
+        }
+        if modeMismatchCameras > 0 {
+            parts.append("\(modeMismatchCameras) wrong mode")
         }
         if errorCameras > 0 {
             parts.append("\(errorCameras) errors")
@@ -273,18 +279,24 @@ class CameraGroupManager: ObservableObject {
         var errorCameras = 0
         var recordingCameras = 0
         var initializingCameras = 0
+        var settingsMismatchCameras = 0
+        var modeMismatchCameras = 0
 
         for (_, camera) in cameras {
             let status = getCameraStatus(camera, bleManager: bleManager)
             switch status {
             case .ready:
                 readyCameras += 1
-            case .error, .overheating, .noSDCard:
+            case .error, .overheating, .noSDCard, .lowBattery:
                 errorCameras += 1
             case .recording:
                 recordingCameras += 1
             case .initializing:
                 initializingCameras += 1
+            case .settingsMismatch:
+                settingsMismatchCameras += 1
+            case .modeMismatch:
+                modeMismatchCameras += 1
             default:
                 break
             }
@@ -297,7 +309,9 @@ class CameraGroupManager: ObservableObject {
             disconnectedCameras: disconnectedCameras,
             recordingCameras: recordingCameras,
             connectingCameras: connectingCameras,
-            initializingCameras: initializingCameras
+            initializingCameras: initializingCameras,
+            settingsMismatchCameras: settingsMismatchCameras,
+            modeMismatchCameras: modeMismatchCameras
         )
     }
 

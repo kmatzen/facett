@@ -53,7 +53,12 @@ class BLEResponseHandler {
                 case .isBusy(let isBusy):
                     gopro.status.isBusy = isBusy
                 case .encoding(let isEncoding):
+                    let wasEncoding = gopro.status.isEncoding ?? false
                     gopro.status.isEncoding = isEncoding
+                    if isEncoding != wasEncoding {
+                        let name = CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: gopro.name)
+                        ErrorHandler.info("Camera \(name) \(isEncoding ? "started" : "stopped") recording")
+                    }
                 case .videoEncodingDuration(let seconds):
                     gopro.status.videoEncodingDuration = seconds
                 case .sdCardRemaining(let remaining):
