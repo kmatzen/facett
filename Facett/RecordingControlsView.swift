@@ -13,10 +13,12 @@ struct RecordingControlsView: View {
     @State private var previouslyAllOnlineAndInSync = false
 
     private var isAnyCameraRecording: Bool {
-        let cameras = cameraGroupManager.activeGroup != nil ?
-            cameraGroupManager.activeGroup!.cameraIds.compactMap { bleManager.connectedGoPros[$0] } :
-            Array(bleManager.connectedGoPros.values)
-
+        let cameras: [GoPro]
+        if let activeGroup = cameraGroupManager.activeGroup {
+            cameras = activeGroup.cameraIds.compactMap { bleManager.connectedGoPros[$0] }
+        } else {
+            cameras = Array(bleManager.connectedGoPros.values)
+        }
         return cameras.contains { $0.status.isEncoding == true }
     }
 
@@ -78,10 +80,12 @@ struct RecordingControlsView: View {
     }
 
     private var recordingCameraCount: Int {
-        let cameras = cameraGroupManager.activeGroup != nil ?
-            cameraGroupManager.activeGroup!.cameraIds.compactMap { bleManager.connectedGoPros[$0] } :
-            Array(bleManager.connectedGoPros.values)
-
+        let cameras: [GoPro]
+        if let activeGroup = cameraGroupManager.activeGroup {
+            cameras = activeGroup.cameraIds.compactMap { bleManager.connectedGoPros[$0] }
+        } else {
+            cameras = Array(bleManager.connectedGoPros.values)
+        }
         return cameras.filter { $0.status.isEncoding == true }.count
     }
 
@@ -259,12 +263,11 @@ struct RecordingControlsView: View {
             HStack(spacing: 8) {
                 // Connect All Button
                 Button(action: {
-                    if cameraGroupManager.activeGroup != nil {
-                        // Connect cameras in active group
-                        let cameraIds = Set(cameraGroupManager.activeGroup!.cameraIds)
+                    if let activeGroup = cameraGroupManager.activeGroup {
+                        let cameraIds = Set(activeGroup.cameraIds)
                         bleManager.setTargetCameras(cameraIds)
 
-                        for cameraId in cameraGroupManager.activeGroup!.cameraIds {
+                        for cameraId in activeGroup.cameraIds {
                             if bleManager.discoveredGoPros[cameraId] != nil {
                                 bleManager.connectToGoPro(uuid: cameraId)
                             }
@@ -292,14 +295,12 @@ struct RecordingControlsView: View {
 
                 // Disconnect All Button
                 Button(action: {
-                    if cameraGroupManager.activeGroup != nil {
-                        // Disconnect cameras in active group
-                        for cameraId in cameraGroupManager.activeGroup!.cameraIds {
+                    if let activeGroup = cameraGroupManager.activeGroup {
+                        for cameraId in activeGroup.cameraIds {
                             if bleManager.connectedGoPros[cameraId] != nil {
                                 bleManager.disconnectFromGoPro(uuid: cameraId)
                             }
                         }
-                        // Clear target cameras for this group
                         bleManager.clearTargetCameras()
                     } else {
                         // Disconnect all cameras
@@ -325,9 +326,8 @@ struct RecordingControlsView: View {
 
                 // Sleep All Button
                 Button(action: {
-                    if cameraGroupManager.activeGroup != nil {
-                        // Sleep cameras in active group
-                        for cameraId in cameraGroupManager.activeGroup!.cameraIds {
+                    if let activeGroup = cameraGroupManager.activeGroup {
+                        for cameraId in activeGroup.cameraIds {
                             if bleManager.connectedGoPros[cameraId] != nil {
                                 bleManager.disconnectFromGoPro(uuid: cameraId, sleep: true)
                             }
