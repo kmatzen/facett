@@ -1,10 +1,10 @@
 # State Machines Documentation
 
-This document provides a comprehensive and accurate description of all state machines in the GoPro Configurator app, based on the actual code implementation.
+This document provides a comprehensive and accurate description of all state machines in Facett, based on the actual code implementation.
 
 ## Overview
 
-The GoPro Configurator app uses several implicit state machines to manage complex workflows:
+Facett uses several implicit state machines to manage complex workflows:
 
 1. **BLE Device Lifecycle State Machine** - Manages device discovery, connection, and disconnection
 2. **Camera Operational Status State Machine** - Tracks individual camera operational states
