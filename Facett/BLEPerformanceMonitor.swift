@@ -124,10 +124,7 @@ class BLEPerformanceMonitor: ObservableObject {
     /// Record command start time
     func recordCommandStart(for uuid: UUID, commandName: String) -> Date {
         let startTime = Date()
-        if commandStartTimes[uuid] == nil {
-            commandStartTimes[uuid] = [:]
-        }
-        commandStartTimes[uuid]![commandName] = startTime
+        commandStartTimes[uuid, default: [:]][commandName] = startTime
         return startTime
     }
 
@@ -135,12 +132,7 @@ class BLEPerformanceMonitor: ObservableObject {
     func recordCommandCompletion(for uuid: UUID, commandName: String, startTime: Date, success: Bool, retryCount: Int = 0) {
         let responseTime = Date().timeIntervalSince(startTime)
 
-        // Update performance metrics
-        if performanceMetrics[uuid] == nil {
-            performanceMetrics[uuid] = PerformanceMetrics()
-        }
-
-        var metrics = performanceMetrics[uuid]!
+        var metrics = performanceMetrics[uuid] ?? PerformanceMetrics()
         metrics.totalCommands += 1
         metrics.totalResponseTime += responseTime
         metrics.averageResponseTime = metrics.totalResponseTime / Double(metrics.totalCommands)
@@ -171,22 +163,13 @@ class BLEPerformanceMonitor: ObservableObject {
 
     /// Record disconnection
     func recordDisconnection(for uuid: UUID) {
-        if connectionHealth[uuid] == nil {
-            connectionHealth[uuid] = ConnectionHealth()
-        }
-
-        var health = connectionHealth[uuid]!
+        var health = connectionHealth[uuid] ?? ConnectionHealth()
         health.disconnectionCount += 1
         health.lastDisconnection = Date()
         health.stabilityScore = max(0, health.stabilityScore - 0.1)
         connectionHealth[uuid] = health
 
-        // Update connection stability
-        if connectionStability[uuid] == nil {
-            connectionStability[uuid] = ConnectionStability()
-        }
-
-        var stability = connectionStability[uuid]!
+        var stability = connectionStability[uuid] ?? ConnectionStability()
         stability.totalConnections += 1
         stability.failedConnections += 1
         connectionStability[uuid] = stability
@@ -194,22 +177,13 @@ class BLEPerformanceMonitor: ObservableObject {
 
     /// Record successful connection
     func recordSuccessfulConnection(for uuid: UUID) {
-        if connectionStability[uuid] == nil {
-            connectionStability[uuid] = ConnectionStability()
-        }
-
-        var stability = connectionStability[uuid]!
+        var stability = connectionStability[uuid] ?? ConnectionStability()
         stability.totalConnections += 1
         stability.successfulConnections += 1
         stability.lastConnectionAttempt = Date()
         connectionStability[uuid] = stability
 
-        // Improve health score
-        if connectionHealth[uuid] == nil {
-            connectionHealth[uuid] = ConnectionHealth()
-        }
-
-        var health = connectionHealth[uuid]!
+        var health = connectionHealth[uuid] ?? ConnectionHealth()
         health.stabilityScore = min(1.0, health.stabilityScore + 0.05)
         connectionHealth[uuid] = health
     }
@@ -257,11 +231,7 @@ class BLEPerformanceMonitor: ObservableObject {
     // MARK: - Private Methods
 
     private func updateConnectionHealth(for uuid: UUID, responseTime: CommandResponseTime) {
-        if connectionHealth[uuid] == nil {
-            connectionHealth[uuid] = ConnectionHealth()
-        }
-
-        var health = connectionHealth[uuid]!
+        var health = connectionHealth[uuid] ?? ConnectionHealth()
 
         // Update average response time
         if health.averageResponseTime == 0 {
