@@ -63,6 +63,5 @@ ContentView
 
 ## Specialized Docs
 
-- [STATE_MACHINES.md](STATE_MACHINES.md) — State definitions, transitions, debugging
 - [BLE_PROTOCOL.md](BLE_PROTOCOL.md) — Packet formats, header encoding, TLV structure
 - [CRASH_REPORTING.md](CRASH_REPORTING.md) — Crash and error logging system
