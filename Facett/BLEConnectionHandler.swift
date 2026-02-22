@@ -36,12 +36,18 @@ class BLEConnectionHandler {
 
         // UI updates must happen on main thread
         DispatchQueue.main.async {
+            let wasEmpty = bleManager.connectedGoPros.isEmpty
+
             bleManager.connectedGoPros[uuid] = gopro // Move to connected list
             bleManager.connectingGoPros.removeValue(forKey: uuid) // Remove from connecting list
             bleManager.discoveredGoPros.removeValue(forKey: uuid) // Remove from discovered list
 
             // Reset initialization flag for new connection
             gopro.hasReceivedInitialStatus = false
+
+            if wasEmpty {
+                bleManager.startKeepAliveTimer()
+            }
 
             // Notify that camera is connected
             bleManager.onCameraConnected?(uuid)
@@ -79,6 +85,10 @@ class BLEConnectionHandler {
                 } else {
                     ErrorHandler.debug("\(cameraName) is sleeping - not moving to discovered list")
                 }
+            }
+
+            if bleManager.connectedGoPros.isEmpty {
+                bleManager.stopKeepAliveTimer()
             }
 
             if wasConnected && !isSleeping {
