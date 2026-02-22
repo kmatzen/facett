@@ -167,7 +167,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     var onCameraConnected: ((UUID) -> Void)?
 
     // MARK: - BLE Component Managers
-    private let connectionManager = BLEConnectionManager()
+    let connectionManager = BLEConnectionManager()
     private let performanceMonitor = BLEPerformanceMonitor()
     private let deviceStateManager = BLEDeviceStateManager()
     private let wifiManager = BLEWiFiManager()
@@ -868,11 +868,21 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         guard connectedGoPros[peripheral.identifier] == nil else { return }
 
         // Don't add sleeping devices to discovered list
-        guard !deviceStateManager.isDeviceSleeping(peripheral.identifier) else { return }
+        guard !deviceStateManager.isDeviceSleeping(peripheral.identifier) else {
+            ErrorHandler.debug("Ignoring sleeping device: \(peripheral.name ?? peripheral.identifier.uuidString)")
+            return
+        }
 
-        // UI updates must happen on main thread
+        let peripheralId = peripheral.identifier
+        let peripheralName = peripheral.name
+        let rssi = RSSI
         DispatchQueue.main.async {
+            let isNew = self.discoveredGoPros[peripheralId] == nil
             self.addDevice(to: \.discoveredGoPros, gopro: gopro)
+            if isNew {
+                let name = CameraIdentityManager.shared.getDisplayName(for: peripheralId, currentName: peripheralName)
+                ErrorHandler.info("Discovered \(name) (RSSI: \(rssi)dBm)")
+            }
         }
     }
 
@@ -2170,8 +2180,23 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Start straggler retry timer
         startStragglerRetryTimer()
 
-        // Connect all discovered cameras
-        discoveredGoPros.keys.forEach { connectToGoPro(uuid: $0) }
+        connectStaggered(Array(discoveredGoPros.keys))
+    }
+
+    private let connectionStaggerDelay: TimeInterval = 0.5
+
+    /// Connect to cameras with a staggered delay to avoid overwhelming the BLE stack
+    func connectStaggered(_ uuids: [UUID]) {
+        for (index, uuid) in uuids.enumerated() {
+            let delay = TimeInterval(index) * connectionStaggerDelay
+            if delay == 0 {
+                connectToGoPro(uuid: uuid)
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                    self?.connectToGoPro(uuid: uuid)
+                }
+            }
+        }
     }
 
     func disconnectCameras() {
@@ -2325,15 +2350,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     /// Log a summary of connection status for debugging
     private func logConnectionSummary() {
-        let totalDiscovered = discoveredGoPros.count
-        let totalConnected = connectedGoPros.count
-        let totalConnecting = connectingGoPros.count
-        let totalFailed = totalDiscovered - totalConnected - totalConnecting
+        let totalTarget = targetConnectedCameras.count
+        let totalConnected = targetConnectedCameras.filter { connectedGoPros[$0] != nil }.count
+        let totalConnecting = targetConnectedCameras.filter { connectingGoPros[$0] != nil }.count
+        let totalFailed = totalTarget - totalConnected - totalConnecting
 
-        log("Connection Summary: \(totalConnected) connected, \(totalConnecting) connecting, \(totalFailed) failed out of \(totalDiscovered) discovered")
+        log("Connection Summary: \(totalConnected) connected, \(totalConnecting) connecting, \(totalFailed) failed out of \(totalTarget) target")
 
         if totalFailed > 0 {
-            let failedCameras = discoveredGoPros.keys.filter { uuid in
+            let failedCameras = targetConnectedCameras.filter { uuid in
                 connectedGoPros[uuid] == nil && connectingGoPros[uuid] == nil
             }
 
