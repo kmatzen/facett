@@ -601,7 +601,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     // Command registry for centralized command management
-    private let commandRegistry = GoProCommandRegistry.shared
 
     override init() {
         super.init()

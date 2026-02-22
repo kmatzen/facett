@@ -1,66 +1,47 @@
 import Foundation
 
-/// Handles BLE packet reconstruction for multi-packet messages
+/// Handles BLE packet reconstruction for multi-packet messages per the GoPro Open API spec.
+///
+/// Packet header formats (from https://gopro.github.io/OpenGoPro/ble/protocol/data_protocol.html):
+/// - Bit 7 = 0: Start packet; Bits 6-5 determine format:
+///   - 00: General (5-bit length in bits 4-0)
+///   - 01: Extended 13-bit (bits 4-0 + next byte = 13-bit length)
+///   - 10: Extended 16-bit (next 2 bytes = 16-bit length, receive-only)
+/// - Bit 7 = 1: Continuation packet; Bits 3-0 = 4-bit sequence counter
 class BLEPacketReconstructor {
 
     // MARK: - Properties
 
-    /// Continuation packet buffers for message reconstruction
-    private var continuationBuffer: [String: Data] = [:] // Key: "peripheralID:queryID"
-    private var expectedMessageLength: [String: Int] = [:] // Key: "peripheralID:queryID"
-    private var lastPacketTime: [String: Date] = [:] // Track when last packet was received
+    private var continuationBuffer: [String: Data] = [:]
+    private var expectedMessageLength: [String: Int] = [:]
+    private var lastPacketTime: [String: Date] = [:]
 
     // MARK: - Public Interface
 
-    /// Process a BLE packet and return complete message data if available
-    /// - Parameters:
-    ///   - data: Raw packet data from BLE
-    ///   - peripheralId: Unique identifier for the peripheral
-    /// - Returns: Complete message data if available, nil if message is incomplete
+    /// Process a BLE packet and return complete message data if available.
+    /// Returns the TLV payload and query/command ID once the full message is assembled.
     func processPacket(_ data: Data, peripheralId: String) -> (data: Data, queryID: UInt8)? {
         guard !data.isEmpty else {
             ErrorHandler.bleError("Received empty data")
             return nil
         }
 
-        // Parse packet header according to GoPro BLE protocol
-        let packetHeader = data[0]
-        let packetType = (packetHeader >> 6) & 0x03 // Extract bits 7-6 for packet type
+        let header = data[0]
+        let isContinuation = (header & 0x80) != 0
 
-        ErrorHandler.debug("Received packet type \(packetType)", context: [
-            "peripheral_id": peripheralId,
-            "data": data.map { String(format: "%02x", $0) }.joined(separator: " ")
-        ])
-
-        // Handle continuation packets with message reconstruction
-        let isContinuationBit = (packetHeader & 0x20) != 0
-
-        // Check if this looks like an initial packet
-        let looksLikeInitialPacket = data.count >= 4 &&
-                                   data[3] == 0 &&
-                                   packetType != 2 &&
-                                   isContinuationBit
-
-        // Process as continuation packet if:
-        // 1. It's a type 2 packet, OR
-        // 2. It has continuation bit set AND doesn't look like an initial packet
-        if packetType == 2 || (isContinuationBit && !looksLikeInitialPacket) {
-            ErrorHandler.debug("Processing continuation packet", context: ["peripheral_id": peripheralId])
+        if isContinuation {
             return handleContinuationPacket(data: data, peripheralId: peripheralId)
+        } else {
+            return handleStartPacket(data: data, peripheralId: peripheralId)
         }
-
-        // Handle initial packets
-        return handleInitialPacket(data: data, peripheralId: peripheralId)
     }
 
-    /// Clear all buffers (useful for testing and error recovery)
     func clearBuffers() {
         continuationBuffer.removeAll()
         expectedMessageLength.removeAll()
         lastPacketTime.removeAll()
     }
 
-    /// Clear buffers for a specific peripheral
     func clearBuffers(for peripheralId: String) {
         let keysToRemove = continuationBuffer.keys.filter { $0.hasPrefix(peripheralId) }
         for key in keysToRemove {
@@ -70,14 +51,10 @@ class BLEPacketReconstructor {
         }
     }
 
-    /// Get current buffer state (useful for testing)
     func getBufferState() -> (buffers: [String: Data], expectedLengths: [String: Int]) {
         return (continuationBuffer, expectedMessageLength)
     }
 
-    /// Check for timeouts and force completion of incomplete responses
-    /// - Parameter timeoutInterval: Timeout interval in seconds (default: 5 seconds)
-    /// - Returns: Array of complete message data from timed out buffers
     func checkTimeouts(timeoutInterval: TimeInterval = 5.0) -> [(data: Data, queryID: UInt8)] {
         let now = Date()
         var results: [(data: Data, queryID: UInt8)] = []
@@ -97,7 +74,6 @@ class BLEPacketReconstructor {
             }
         }
 
-        // Clean up timed out buffers
         for key in keysToRemove {
             continuationBuffer.removeValue(forKey: key)
             expectedMessageLength.removeValue(forKey: key)
@@ -109,91 +85,96 @@ class BLEPacketReconstructor {
 
     // MARK: - Private Methods
 
-    /// Handle initial packets (single or first packet of multi-packet message)
-    private func handleInitialPacket(data: Data, peripheralId: String) -> (data: Data, queryID: UInt8)? {
-        guard data.count >= 4 else {
-            ErrorHandler.bleError("Initial packet too short", context: ["data_length": String(data.count)])
+    /// Parse a start packet header and extract the message length and payload offset.
+    /// Returns (messageLength, payloadStartIndex) or nil on error.
+    private func parseStartHeader(_ data: Data) -> (messageLength: Int, payloadStart: Int)? {
+        let header = data[0]
+        let headerType = (header >> 5) & 0x03
+
+        switch headerType {
+        case 0b00:
+            // General (5-bit): message length in bits 4-0
+            let messageLength = Int(header & 0x1F)
+            return (messageLength, 1)
+
+        case 0b01:
+            // Extended 13-bit: bits 4-0 of header + next byte
+            guard data.count >= 2 else {
+                ErrorHandler.bleError("Extended 13-bit packet too short", context: ["data_length": String(data.count)])
+                return nil
+            }
+            let messageLength = (Int(header & 0x1F) << 8) | Int(data[1])
+            return (messageLength, 2)
+
+        case 0b10:
+            // Extended 16-bit: next 2 bytes (receive-only format for messages >= 8192 bytes)
+            guard data.count >= 3 else {
+                ErrorHandler.bleError("Extended 16-bit packet too short", context: ["data_length": String(data.count)])
+                return nil
+            }
+            let messageLength = (Int(data[1]) << 8) | Int(data[2])
+            return (messageLength, 3)
+
+        default:
+            ErrorHandler.bleError("Reserved header type", context: ["header": String(format: "0x%02X", header)])
             return nil
-        }
-
-        let totalLength: Int
-        let queryID: Int
-        let _: Int // statusByte (unused for now)
-        let tlvStartIndex: Int
-
-        if data[3] == 0 {
-            // Format 1: [packetHeader] [totalLength] [queryID] [status=0] [TLV data...]
-            let packetTotalLength = Int(data[1])
-            queryID = Int(data[2])
-            _ = Int(data[3]) // statusByte
-            tlvStartIndex = 4
-            // For multipart responses, totalLength is the TLV data length (packet total - header bytes)
-            totalLength = packetTotalLength - 2  // Subtract [queryID][status] from total
-        } else {
-            // Format 2: [packetHeader] [queryID] [status] [TLV data...]
-            // This is a single-packet response, so totalLength = packet length - header
-            totalLength = data.count - 3  // Total data minus [header][queryID][status]
-            queryID = Int(data[1])
-            _ = Int(data[2]) // statusByte
-            tlvStartIndex = 3
-        }
-
-        let tlvData = data.subdata(in: tlvStartIndex..<data.count)
-
-        // Always use the buffer-based approach for consistency
-        let bufferKey = "\(peripheralId):\(queryID)"
-        continuationBuffer[bufferKey] = tlvData
-        expectedMessageLength[bufferKey] = totalLength
-        lastPacketTime[bufferKey] = Date()
-
-        ErrorHandler.debug("Initialized buffer for queryID", context: [
-            "query_id": String(queryID),
-            "tlv_data_length": String(tlvData.count),
-            "expected_total": String(totalLength)
-        ])
-
-        // Check if we already have the complete message (single packet case)
-        if tlvData.count >= totalLength {
-            ErrorHandler.debug("Complete message received in single packet", context: ["query_id": String(queryID)])
-
-            // Clear the buffer
-            continuationBuffer.removeValue(forKey: bufferKey)
-            expectedMessageLength.removeValue(forKey: bufferKey)
-            lastPacketTime.removeValue(forKey: bufferKey)
-
-            return (data: tlvData, queryID: UInt8(queryID))
-        } else {
-            ErrorHandler.debug("Incomplete message, waiting for continuation packets", context: ["query_id": String(queryID)])
-            return nil // Wait for continuation packets
         }
     }
 
-    /// Handle continuation packets by appending data to existing buffers
+    /// Handle a start packet (first or only packet of a message).
+    /// Message payload format for queries: [QueryID] [Status] [TLV data...]
+    private func handleStartPacket(data: Data, peripheralId: String) -> (data: Data, queryID: UInt8)? {
+        guard let (messageLength, payloadStart) = parseStartHeader(data) else {
+            return nil
+        }
+
+        let payloadInThisPacket = data.subdata(in: payloadStart..<data.count)
+
+        guard payloadInThisPacket.count >= 2 else {
+            ErrorHandler.bleError("Start packet payload too short for query response", context: [
+                "payload_length": String(payloadInThisPacket.count)
+            ])
+            return nil
+        }
+
+        let queryID = payloadInThisPacket[0]
+        // payloadInThisPacket[1] is the status byte (0 = success)
+        let tlvData = payloadInThisPacket.count > 2 ? payloadInThisPacket.subdata(in: 2..<payloadInThisPacket.count) : Data()
+        let expectedTLVLength = messageLength - 2
+
+        let bufferKey = "\(peripheralId):\(queryID)"
+        continuationBuffer[bufferKey] = tlvData
+        expectedMessageLength[bufferKey] = expectedTLVLength
+        lastPacketTime[bufferKey] = Date()
+
+        if tlvData.count >= expectedTLVLength {
+            continuationBuffer.removeValue(forKey: bufferKey)
+            expectedMessageLength.removeValue(forKey: bufferKey)
+            lastPacketTime.removeValue(forKey: bufferKey)
+            return (data: tlvData, queryID: queryID)
+        }
+
+        return nil
+    }
+
+    /// Handle a continuation packet by appending its payload to an existing buffer.
+    /// Continuation header: bit 7 = 1, bits 3-0 = sequence counter.
+    /// Payload starts at byte 1.
     private func handleContinuationPacket(data: Data, peripheralId: String) -> (data: Data, queryID: UInt8)? {
-        guard data.count >= 3 else {
+        guard data.count >= 2 else {
             ErrorHandler.bleError("Continuation packet too short", context: ["data_length": String(data.count)])
             return nil
         }
 
-        let sequenceCounter = data[0] & 0x0F // Lower 4 bits are sequence counter
-        let status = data[2] // Third byte is status
-
-        ErrorHandler.debug("Continuation packet received", context: [
-            "sequence": String(sequenceCounter),
-            "status": String(status),
-            "peripheral_id": peripheralId
-        ])
+        let payload = data.subdata(in: 1..<data.count)
 
         let bufferKeys = continuationBuffer.keys.filter { $0.hasPrefix(peripheralId) }
 
         if bufferKeys.isEmpty {
-            return handleFirstPacketOfMultipart(data: data, peripheralId: peripheralId)
+            ErrorHandler.bleError("No buffer found for continuation packet", context: ["peripheral_id": peripheralId])
+            return nil
         }
 
-        // When multiple buffers exist, pick the most recently active one.
-        // Continuation packets don't carry a query ID, so we use recency
-        // as the best heuristic. The GoPro BLE protocol expects one
-        // multipart response per characteristic at a time.
         let bufferKey: String
         if bufferKeys.count == 1 {
             bufferKey = bufferKeys[0]
@@ -210,41 +191,14 @@ class BLEPacketReconstructor {
             return nil
         }
 
-        // Extract TLV data from continuation packet
-        let packetType = (data[0] >> 6) & 0x03 // Extract bits 7-6 for packet type
-        let tlvData: Data
-        if packetType == 2 { // Type 2 packet
-            tlvData = data.subdata(in: 1..<data.count)
-        } else { // Type 1 packet with continuation bit
-            tlvData = data.subdata(in: 1..<data.count)
-        }
-
-        ErrorHandler.debug("Extracted TLV data from continuation packet", context: [
-            "tlv_data_length": String(tlvData.count),
-            "packet_type": String(packetType)
-        ])
-
-        // Append to buffer
-        buffer.append(tlvData)
+        buffer.append(payload)
         continuationBuffer[bufferKey] = buffer
         lastPacketTime[bufferKey] = Date()
 
-        ErrorHandler.debug("Buffer updated", context: [
-            "buffer_length": String(buffer.count),
-            "expected_length": String(expectedLength)
-        ])
-
-        // Check if we have the complete message
         if buffer.count >= expectedLength {
-            ErrorHandler.debug("Complete message received from continuation packets", context: [
-                "buffer_length": String(buffer.count)
-            ])
+            let parts = bufferKey.split(separator: ":")
+            let queryID = parts.count >= 2 ? (UInt8(parts[1]) ?? 0) : 0
 
-            // Extract query ID from buffer key
-            let queryIDString = bufferKey.split(separator: ":")[1]
-            let queryID = UInt8(queryIDString) ?? 0
-
-            // Clear the buffer
             continuationBuffer.removeValue(forKey: bufferKey)
             expectedMessageLength.removeValue(forKey: bufferKey)
             lastPacketTime.removeValue(forKey: bufferKey)
@@ -252,55 +206,6 @@ class BLEPacketReconstructor {
             return (data: buffer, queryID: queryID)
         }
 
-        return nil // Still waiting for more packets
-    }
-
-    /// Handle the first packet of a multipart response
-    private func handleFirstPacketOfMultipart(data: Data, peripheralId: String) -> (data: Data, queryID: UInt8)? {
-        let packetType = (data[0] >> 6) & 0x03
-        let isContinuationBit = (data[0] & 0x20) != 0
-        let looksLikeInitialPacket = data.count >= 4 &&
-                                   data[3] == 0 &&
-                                   packetType != 2 &&
-                                   isContinuationBit
-
-        if looksLikeInitialPacket {
-            ErrorHandler.debug("First packet of multipart response detected", context: ["peripheral_id": peripheralId])
-
-            let packetTotalLength = Int(data[1])
-            let queryID = Int(data[2])
-            let tlvData = data.subdata(in: 4..<data.count)
-
-            let bufferKey = "\(peripheralId):\(queryID)"
-            continuationBuffer[bufferKey] = tlvData
-            // For multipart responses, expectedMessageLength is the TLV data length (packet total - header bytes)
-            expectedMessageLength[bufferKey] = packetTotalLength - 2  // Subtract [queryID][status] from total
-            lastPacketTime[bufferKey] = Date()
-
-            let expectedTLVLength = packetTotalLength - 2  // Subtract [queryID][status] from total
-            ErrorHandler.debug("Initialized buffer for multipart response", context: [
-                "query_id": String(queryID),
-                "tlv_data_length": String(tlvData.count),
-                "expected_total": String(expectedTLVLength)
-            ])
-
-            // Check if we already have the complete message
-            if tlvData.count >= expectedTLVLength {
-                ErrorHandler.debug("Complete message received in single packet for multipart response", context: ["query_id": String(queryID)])
-
-                // Clear the buffer
-                continuationBuffer.removeValue(forKey: bufferKey)
-                expectedMessageLength.removeValue(forKey: bufferKey)
-                lastPacketTime.removeValue(forKey: bufferKey)
-
-                return (data: tlvData, queryID: UInt8(queryID))
-            } else {
-                ErrorHandler.debug("Incomplete multipart message, waiting for continuation packets", context: ["query_id": String(queryID)])
-                return nil // Wait for continuation packets
-            }
-        } else {
-            ErrorHandler.bleError("No buffer found for peripheral", context: ["peripheral_id": peripheralId])
-            return nil
-        }
+        return nil
     }
 }
