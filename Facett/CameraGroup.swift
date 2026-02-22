@@ -104,26 +104,19 @@ struct GroupStatus {
     let settingsMismatchCameras: Int
     let modeMismatchCameras: Int
 
+    /// Group status reflects the least-progressed camera in the group.
+    /// Progression: disconnected → connecting → initializing → modeMismatch → settingsMismatch → ready
+    /// Errors and recording override the progression since they require immediate attention.
     var overallStatus: CameraStatus {
-        if errorCameras > 0 {
-            return .error
-        } else if recordingCameras > 0 {
-            return .recording
-        } else if connectingCameras > 0 {
-            return .connecting
-        } else if initializingCameras > 0 {
-            return .initializing
-        } else if settingsMismatchCameras > 0 {
-            return .settingsMismatch
-        } else if modeMismatchCameras > 0 {
-            return .modeMismatch
-        } else if readyCameras + recordingCameras == totalCameras {
-            return .ready
-        } else if disconnectedCameras > 0 && readyCameras > 0 {
-            return .connecting
-        } else {
-            return .disconnected
-        }
+        if errorCameras > 0 { return .error }
+        if recordingCameras > 0 { return .recording }
+        if disconnectedCameras > 0 { return .disconnected }
+        if connectingCameras > 0 { return .connecting }
+        if initializingCameras > 0 { return .initializing }
+        if modeMismatchCameras > 0 { return .modeMismatch }
+        if settingsMismatchCameras > 0 { return .settingsMismatch }
+        if readyCameras == totalCameras { return .ready }
+        return .disconnected
     }
 
     var statusMessage: String {
