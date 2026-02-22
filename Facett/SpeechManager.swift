@@ -78,7 +78,8 @@ class SpeechManager: ObservableObject {
 
         recognitionRequest.shouldReportPartialResults = true
 
-        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { result, error in
+        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+            guard let self = self else { return }
             if let result = result {
                 let segments = result.bestTranscription.segments
 
@@ -98,14 +99,16 @@ class SpeechManager: ObservableObject {
             }
 
             if error != nil || (result?.isFinal ?? false) {
-                self.stopListening()
+                DispatchQueue.main.async {
+                    self.stopListening()
+                }
             }
         }
 
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
-            self.recognitionRequest?.append(buffer)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+            self?.recognitionRequest?.append(buffer)
         }
 
         audioEngine.prepare()
@@ -120,6 +123,10 @@ class SpeechManager: ObservableObject {
         audioEngine.inputNode.removeTap(onBus: 0)
         recognitionTask = nil
         recognitionRequest = nil
-        isListening = false
+        if Thread.isMainThread {
+            isListening = false
+        } else {
+            DispatchQueue.main.async { self.isListening = false }
+        }
     }
 }
