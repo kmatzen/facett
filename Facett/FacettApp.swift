@@ -5,7 +5,7 @@ struct FacettApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     @StateObject var bleManager = BLEManager()
-    @StateObject var configManager = ConfigManager()
+    @StateObject var configManager: ConfigManager
     @StateObject var cameraGroupManager: CameraGroupManager
 
     init() {

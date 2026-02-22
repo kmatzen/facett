@@ -78,10 +78,8 @@ class BLEPacketReconstructor {
                 ErrorHandler.warning("Timeout detected for buffer", context: ["buffer_key": bufferKey])
 
                 if let buffer = continuationBuffer[bufferKey] {
-                    // Extract query ID from buffer key
-                    let queryIDString = bufferKey.split(separator: ":")[1]
-                    let queryID = UInt8(queryIDString) ?? 0
-
+                    let parts = bufferKey.split(separator: ":")
+                    let queryID = parts.count >= 2 ? (UInt8(parts[1]) ?? 0) : 0
                     results.append((data: buffer, queryID: queryID))
                 }
 
