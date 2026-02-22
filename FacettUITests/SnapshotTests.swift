@@ -21,36 +21,37 @@ final class SnapshotTests: XCTestCase {
     func testScreenshots() {
         snapshot("01-Dashboard")
 
-        if app.buttons["Configurations"].exists {
-            app.buttons["Configurations"].tap()
+        let configurationsText = app.staticTexts["Configurations"]
+        if configurationsText.exists {
+            configurationsText.tap()
             sleep(1)
             snapshot("02-Configurations")
-
-            if app.navigationBars.buttons.firstMatch.exists {
-                app.navigationBars.buttons.firstMatch.tap()
-            }
-            sleep(1)
+            dismissSheet()
         }
 
-        if app.buttons["Camera Groups"].exists {
-            app.buttons["Camera Groups"].tap()
+        let cameraGroupsText = app.staticTexts["Camera Groups"]
+        if cameraGroupsText.exists {
+            cameraGroupsText.tap()
             sleep(1)
             snapshot("03-CameraGroups")
-
-            if app.navigationBars.buttons.firstMatch.exists {
-                app.navigationBars.buttons.firstMatch.tap()
-            }
-            sleep(1)
+            dismissSheet()
         }
 
-        if app.buttons["Bug Report"].exists {
-            app.buttons["Bug Report"].tap()
+        let bugReportsText = app.staticTexts["Bug Reports"]
+        if bugReportsText.exists {
+            bugReportsText.tap()
             sleep(1)
             snapshot("04-BugReport")
+            dismissSheet()
+        }
+    }
 
-            if app.navigationBars.buttons.firstMatch.exists {
-                app.navigationBars.buttons.firstMatch.tap()
-            }
+    private func dismissSheet() {
+        if app.navigationBars.buttons.firstMatch.exists {
+            app.navigationBars.buttons.firstMatch.tap()
+            sleep(1)
+        } else {
+            app.swipeDown()
             sleep(1)
         }
     }
