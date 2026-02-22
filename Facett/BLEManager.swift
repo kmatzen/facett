@@ -430,7 +430,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             gopro.peripheral.writeValue(Data(command), for: characteristic, type: .withResponse)
         }
 
-
         ErrorHandler.debug("Sent \(commandName) command to \(gopro.peripheral.name ?? "a device")")
     }
 
@@ -476,8 +475,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     let bleParser = GoProBLEParser()
     @Published var discoveredGoPros: [UUID: GoPro] = [:]
     @Published var statusMessage: String = "Scanning for devices..."
-
-
 
     private var centralManager: CBCentralManager!
     private var deviceQueryTimer: Timer?
@@ -850,8 +847,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         return modeManager.getCurrentModeDescription(for: uuid)
     }
 
-
-
     func setDateTime(for uuid: UUID) {
         guard connectedGoPros[uuid] != nil else { return }
 
@@ -935,7 +930,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     ) {
         connectionHandler.handleDisconnection(peripheral, error: error)
     }
-
 
     func centralManager(
         _ central: CBCentralManager,
@@ -1315,9 +1309,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     // MARK: - WiFi Characteristic Handlers (Moved to BLEWiFiManager)
 
     func verifySettings(_ response: Data, for peripheral: CBPeripheral) {
-
-
-        // Convert the response to a byte array for loging
+        // Convert the response to a byte array for logging
         let byteArray = response.map { String(format: "0x%02X", $0) }.joined(separator: " ")
 
         if response[2] == 0 {
@@ -1722,11 +1714,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         return connectionStabilityMetrics[uuid]
     }
 
-
     // MARK: - Device Management
     private func addDevice(to collection: ReferenceWritableKeyPath<BLEManager, [UUID: GoPro]>, gopro: GoPro) {
-
-
         self[keyPath: collection][gopro.peripheral.identifier] = gopro
 
         // Note: Camera name will be stored when we receive the apSSID (serial number)
@@ -1734,8 +1723,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     private func removeDevice(from collection: ReferenceWritableKeyPath<BLEManager, [UUID: GoPro]>, uuid: UUID) {
-
-
         self[keyPath: collection].removeValue(forKey: uuid)
     }
 
@@ -1744,8 +1731,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         uuid: UUID,
         gopro: GoPro?
     ) {
-
-
         if let gopro = gopro {
             self[keyPath: collection][uuid] = gopro
         } else {
@@ -1987,7 +1972,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             stopKeepAliveTimer()
         }
     }
-
 
     private func sendCommand(_ command: [UInt8], to gopro: GoPro, actionDescription: String, priority: CommandPriority = .critical) {
         // Use the queue system for consistency
@@ -2243,8 +2227,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         return peripheral.services?.flatMap { $0.characteristics ?? [] }.first { $0.uuid == uuid }
     }
 
-
-
     // MARK: - Sleep and Wake Operations
     func putCamerasToSleep() {
         stopKeepAliveTimer()
@@ -2469,8 +2451,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         )
     }
 
-
-
     func sendSettingsToCamerasInGroup(_ cameraSerials: Set<String>, configManager: ConfigManager, cameraGroupManager: CameraGroupManager) {
         // Get target settings using centralized logic
         let targetSettings = configManager.getTargetSettings(for: cameraGroupManager.activeGroup)
@@ -2573,8 +2553,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     func configureAllDevices() {
-
-
         connectedGoPros.forEach { _, gopro in
             sendSettings(to: gopro.peripheral)
         }
