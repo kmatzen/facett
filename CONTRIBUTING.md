@@ -33,16 +33,6 @@ All PRs must pass the existing test suite. Add tests for new functionality.
 ### Running Tests
 
 ```bash
-./run_tests.sh unit          # Unit tests (no hardware)
-./run_tests.sh ui            # UI tests (simulator)
-./run_tests.sh integration   # Integration tests (mocked BLE)
-./run_tests.sh device        # Device tests (real GoPro required)
-./run_tests.sh all           # All of the above
-```
-
-Or run directly with xcodebuild:
-
-```bash
 xcodebuild test \
     -project Facett.xcodeproj \
     -scheme Facett \
