@@ -64,14 +64,14 @@ class BLEConnectionHandler {
                 if !isSleeping {
                     bleManager.discoveredGoPros[uuid] = gopro
                 } else {
-                    ErrorHandler.info("🌙 \(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) is sleeping - not moving to discovered list")
+                    ErrorHandler.info("\(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) is sleeping - not moving to discovered list")
                 }
             } else if let gopro = bleManager.connectingGoPros[uuid] {
                 bleManager.connectingGoPros.removeValue(forKey: uuid)
                 if !isSleeping {
                     bleManager.discoveredGoPros[uuid] = gopro
                 } else {
-                    ErrorHandler.info("🌙 \(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) is sleeping - not moving to discovered list")
+                    ErrorHandler.info("\(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) is sleeping - not moving to discovered list")
                 }
             }
         }

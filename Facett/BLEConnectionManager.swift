@@ -91,7 +91,7 @@ class BLEConnectionManager: ObservableObject {
 
     /// Start connection retry process for a device
     func startConnectionRetry(for uuid: UUID, maxAttempts: Int = 3) {
-        ErrorHandler.info("🔄 Starting connection retry for device \(uuid)")
+        ErrorHandler.info("Starting connection retry for device \(uuid)")
 
         connectionRetryCount[uuid] = 0
         maxRetryAttempts = maxAttempts
@@ -104,7 +104,7 @@ class BLEConnectionManager: ObservableObject {
     private func attemptConnection(_ uuid: UUID) {
         guard let currentAttempt = connectionRetryCount[uuid] else { return }
 
-        ErrorHandler.info("🔗 Connection attempt \(currentAttempt + 1)/\(maxRetryAttempts) for device \(uuid)")
+        ErrorHandler.info("Connection attempt \(currentAttempt + 1)/\(maxRetryAttempts) for device \(uuid)")
 
         // Start connection timeout timer
         connectionAttemptTimers[uuid] = Timer.scheduledTimer(withTimeInterval: connectionTimeout, repeats: false) { [weak self] _ in
@@ -121,7 +121,7 @@ class BLEConnectionManager: ObservableObject {
 
     /// Handle successful connection
     func handleConnectionSuccess(_ uuid: UUID) {
-        ErrorHandler.info("✅ Connection successful for device \(uuid)")
+        ErrorHandler.info("Connection successful for device \(uuid)")
 
         // Cancel timers
         connectionAttemptTimers[uuid]?.invalidate()
@@ -140,7 +140,7 @@ class BLEConnectionManager: ObservableObject {
 
     /// Handle connection failure
     func handleConnectionFailure(_ uuid: UUID, error: Error) {
-        ErrorHandler.info("❌ Connection failed for device \(uuid): \(error.localizedDescription)")
+        ErrorHandler.info("Connection failed for device \(uuid): \(error.localizedDescription)")
 
         // Cancel attempt timer
         connectionAttemptTimers[uuid]?.invalidate()
@@ -167,13 +167,13 @@ class BLEConnectionManager: ObservableObject {
 
     /// Handle connection timeout
     private func handleConnectionTimeout(_ uuid: UUID) {
-        ErrorHandler.info("⏰ Connection timeout for device \(uuid)")
+        ErrorHandler.info("Connection timeout for device \(uuid)")
         handleConnectionFailure(uuid, error: NSError(domain: "BLEConnection", code: -1, userInfo: [NSLocalizedDescriptionKey: "Connection timeout"]))
     }
 
     /// Cancel connection retry for a device
     func cancelConnectionRetry(for uuid: UUID) {
-        ErrorHandler.info("🛑 Cancelling connection retry for device \(uuid)")
+        ErrorHandler.info("Cancelling connection retry for device \(uuid)")
 
         connectionRetryTimers[uuid]?.invalidate()
         connectionAttemptTimers[uuid]?.invalidate()

@@ -67,7 +67,7 @@ class BLEDeviceStateManager: ObservableObject {
 
         discoveredDevices[uuid] = deviceState
 
-        log("📱 Device discovered: \(peripheral.name ?? "Unknown") (\(uuid))")
+        log("Device discovered: \(peripheral.name ?? "Unknown") (\(uuid))")
         onDeviceDiscovered?(uuid, peripheral)
     }
 
@@ -79,7 +79,7 @@ class BLEDeviceStateManager: ObservableObject {
     /// Start connection to a device
     func startConnection(to uuid: UUID) {
         guard let deviceState = discoveredDevices[uuid] else {
-            log("❌ Cannot connect to unknown device: \(uuid)")
+            log("Cannot connect to unknown device: \(uuid)")
             return
         }
 
@@ -96,7 +96,7 @@ class BLEDeviceStateManager: ObservableObject {
             self?.handleConnectionTimeout(for: uuid)
         }
 
-        log("🔌 Starting connection to device: \(uuid)")
+        log("Starting connection to device: \(uuid)")
     }
 
     /// Handle successful connection
@@ -121,7 +121,7 @@ class BLEDeviceStateManager: ObservableObject {
         connectionRetryCount.removeValue(forKey: uuid)
         connectionRetryStatus.removeValue(forKey: uuid)
 
-        log("✅ Device connected: \(uuid)")
+        log("Device connected: \(uuid)")
         onDeviceConnected?(uuid, deviceState.peripheral)
     }
 
@@ -142,7 +142,7 @@ class BLEDeviceStateManager: ObservableObject {
         // Start retry logic
         startConnectionRetry(for: uuid)
 
-        log("❌ Connection failed for device: \(uuid)")
+        log("Connection failed for device: \(uuid)")
     }
 
     /// Handle device disconnection
@@ -163,7 +163,7 @@ class BLEDeviceStateManager: ObservableObject {
         connectionRetryTimers[uuid]?.invalidate()
         connectionRetryTimers.removeValue(forKey: uuid)
 
-        log("🔌 Device disconnected: \(uuid)")
+        log("Device disconnected: \(uuid)")
         onDeviceDisconnected?(uuid, deviceState.peripheral)
     }
 
@@ -223,7 +223,7 @@ class BLEDeviceStateManager: ObservableObject {
         connectionAttemptTimers[uuid]?.invalidate()
         connectionAttemptTimers.removeValue(forKey: uuid)
 
-        log("🗑️ Device removed: \(uuid)")
+        log("Device removed: \(uuid)")
     }
 
     /// Clear all devices
@@ -243,7 +243,7 @@ class BLEDeviceStateManager: ObservableObject {
         connectionRetryTimers.removeAll()
         connectionAttemptTimers.removeAll()
 
-        log("🧹 All devices cleared")
+        log("All devices cleared")
     }
 
     /// Get all connected device UUIDs
@@ -267,7 +267,7 @@ class BLEDeviceStateManager: ObservableObject {
         let retryCount = connectionRetryCount[uuid] ?? 0
 
         guard retryCount < maxRetryAttempts else {
-            log("❌ Max retry attempts reached for device: \(uuid)")
+            log("Max retry attempts reached for device: \(uuid)")
             return
         }
 
@@ -281,7 +281,7 @@ class BLEDeviceStateManager: ObservableObject {
 
         let delay = calculateRetryDelay(for: retryCount + 1)
 
-        log("🔄 Retrying connection to device \(uuid) (\(retryCount + 1)/\(maxRetryAttempts)) in \(delay)s")
+        log("Retrying connection to device \(uuid) (\(retryCount + 1)/\(maxRetryAttempts)) in \(delay)s")
 
         connectionRetryTimers[uuid] = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
             self?.onConnectionRetry?(uuid, retryCount + 1)
@@ -289,7 +289,7 @@ class BLEDeviceStateManager: ObservableObject {
     }
 
     private func handleConnectionTimeout(for uuid: UUID) {
-        log("⏰ Connection timeout for device: \(uuid)")
+        log("Connection timeout for device: \(uuid)")
         onConnectionTimeout?(uuid)
         handleConnectionFailure(uuid)
     }

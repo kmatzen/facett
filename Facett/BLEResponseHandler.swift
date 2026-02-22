@@ -33,7 +33,7 @@ class BLEResponseHandler {
 
                 // Sync time when camera first connects and is ready for commands
                 let cameraName = CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: gopro.name)
-                ErrorHandler.info("🕐 Syncing time for newly connected camera: \(cameraName)")
+                ErrorHandler.info("Syncing time for newly connected camera: \(cameraName)")
                 bleManager.setDateTime(for: uuid)
             }
 
