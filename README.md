@@ -1,6 +1,11 @@
 # Facett
 
+[![Build & Test](https://github.com/kmatzen/facett/actions/workflows/build.yml/badge.svg)](https://github.com/kmatzen/facett/actions/workflows/build.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A SwiftUI iOS app for controlling multiple GoPro cameras simultaneously via Bluetooth Low Energy (BLE).
+
+Facett is built for multi-camera shoots — connect a fleet of GoPros, organize them into groups, sync settings across the group, and start/stop recording on all cameras at once.
 
 ## Features
 
@@ -22,7 +27,13 @@ A SwiftUI iOS app for controlling multiple GoPro cameras simultaneously via Blue
 
 ## Building
 
-Open `Facett.xcodeproj` in Xcode and build the `Facett` target.
+```bash
+git clone https://github.com/kmatzen/facett.git
+cd facett
+open Facett.xcodeproj
+```
+
+Build and run the `Facett` scheme targeting an iOS Simulator or physical device.
 
 ## Testing
 
@@ -34,17 +45,20 @@ Open `Facett.xcodeproj` in Xcode and build the `Facett` target.
 ./run_tests.sh all           # All of the above
 ```
 
-## Architecture
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system design. The app follows SwiftUI + MVVM with a BLE communication stack.
-
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — System design and component overview
 - [API_REFERENCE.md](API_REFERENCE.md) — Public API documentation
 - [BLE_PROTOCOL.md](BLE_PROTOCOL.md) — GoPro BLE protocol details
 - [STATE_MACHINES.md](STATE_MACHINES.md) — State machine documentation
-- [CAMERA_UUID_MIGRATION.md](CAMERA_UUID_MIGRATION.md) — Camera identity migration notes
-- [CRASH_REPORTING.md](CRASH_REPORTING.md) — Crash reporting system
 - [TESTING.md](TESTING.md) — Testing strategy and guidelines
+- [CRASH_REPORTING.md](CRASH_REPORTING.md) — Crash reporting system
+- [CAMERA_UUID_MIGRATION.md](CAMERA_UUID_MIGRATION.md) — Camera serial-based identity system
 
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+[MIT](LICENSE) — Kevin Blackburn-Matzen
