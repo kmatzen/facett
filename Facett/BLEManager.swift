@@ -631,6 +631,26 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
 
+    /// Clean up all state associated with a disconnected device
+    func cleanupDeviceState(for uuid: UUID) {
+        connectionRetryTimers[uuid]?.invalidate()
+        connectionRetryTimers.removeValue(forKey: uuid)
+
+        connectionAttemptTimers[uuid]?.invalidate()
+        connectionAttemptTimers.removeValue(forKey: uuid)
+
+        commandQueueTimers[uuid]?.invalidate()
+        commandQueueTimers.removeValue(forKey: uuid)
+
+        commandQueues.removeValue(forKey: uuid)
+        pendingCommands.removeValue(forKey: uuid)
+        connectionRetryCount.removeValue(forKey: uuid)
+
+        bleParser.clearBuffers(for: uuid.uuidString)
+
+        performanceMonitor.recordDisconnection(for: uuid)
+    }
+
     deinit {
         stopDeviceQueryTimer()
         stopDeviceScanTimer()

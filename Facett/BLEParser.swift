@@ -318,6 +318,11 @@ class GoProBLEParser {
         packetReconstructor.clearBuffers()
     }
 
+    /// Clear buffers for a specific peripheral
+    func clearBuffers(for peripheralId: String) {
+        packetReconstructor.clearBuffers(for: peripheralId)
+    }
+
     /// Get current buffer state (useful for testing)
     func getBufferState() -> (buffers: [String: Data], expectedLengths: [String: Int]) {
         return packetReconstructor.getBufferState()

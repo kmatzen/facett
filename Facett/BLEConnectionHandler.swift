@@ -54,21 +54,22 @@ class BLEConnectionHandler {
         let uuid = peripheral.identifier
         ErrorHandler.info("\(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) disconnected.")
 
+        bleManager.cleanupDeviceState(for: uuid)
+
         DispatchQueue.main.async {
-            // Check if device was intentionally put to sleep - don't move to discovered list if so
             let isSleeping = bleManager.isDeviceSleeping(uuid)
 
             if let gopro = bleManager.connectedGoPros[uuid] {
                 bleManager.connectedGoPros.removeValue(forKey: uuid)
                 if !isSleeping {
-                    bleManager.discoveredGoPros[uuid] = gopro // Move back to discovered list only if not sleeping
+                    bleManager.discoveredGoPros[uuid] = gopro
                 } else {
                     ErrorHandler.info("🌙 \(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) is sleeping - not moving to discovered list")
                 }
             } else if let gopro = bleManager.connectingGoPros[uuid] {
                 bleManager.connectingGoPros.removeValue(forKey: uuid)
                 if !isSleeping {
-                    bleManager.discoveredGoPros[uuid] = gopro // Move back to discovered list only if not sleeping
+                    bleManager.discoveredGoPros[uuid] = gopro
                 } else {
                     ErrorHandler.info("🌙 \(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) is sleeping - not moving to discovered list")
                 }
