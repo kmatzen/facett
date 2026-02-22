@@ -978,8 +978,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         // Ensure characteristic value exists
         guard let data = characteristic.value else {
-            assert(false, "Characteristic value should not be nil")
-            log("No data received for \(characteristic.uuid).")
+            ErrorHandler.error("Characteristic value unexpectedly nil", context: ["uuid": characteristic.uuid.uuidString])
             return
         }
 

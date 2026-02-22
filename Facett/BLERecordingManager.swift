@@ -156,15 +156,6 @@ class BLERecordingManager {
 
         bleManager.log("🎥 Sending recording command: \(commandName) to \(uuid)")
 
-        // Provide haptic feedback for recording start/stop
-        DispatchQueue.main.async {
-            if commandName.contains("start") {
-                self.recordingStartedHaptic()
-            } else {
-                self.recordingStoppedHaptic()
-            }
-        }
-
         let command: [UInt8] = [3, 1, 1, commandName.contains("start") ? 1 : 0]
         bleManager.log("📤 Recording command bytes: \(command.map { String(format: "0x%02X", $0) }.joined(separator: " "))")
 
