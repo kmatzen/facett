@@ -38,12 +38,15 @@ Build and run the `Facett` scheme targeting an iOS Simulator or physical device.
 ## Testing
 
 ```bash
-./run_tests.sh unit          # Unit tests (no hardware)
-./run_tests.sh ui            # UI tests (simulator)
-./run_tests.sh integration   # Integration tests (mocked BLE)
-./run_tests.sh device        # Device tests (real GoPro required)
-./run_tests.sh all           # All of the above
+xcodebuild test \
+    -project Facett.xcodeproj \
+    -scheme Facett \
+    -destination "platform=iOS Simulator,name=iPhone 16" \
+    -only-testing:FacettTests \
+    -quiet
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full list of test suites.
 
 ## Documentation
 
