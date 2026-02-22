@@ -34,6 +34,11 @@ jobs:
             -project Facett.xcodeproj \
             -scheme Facett \
             -destination "platform=iOS Simulator,name=iPhone 16" \
-            -only-testing:FacettTests/ParserTests \
+            -only-testing:FacettTests/PacketReconstructorTests \
+            -only-testing:FacettTests/TLVParserTests \
+            -only-testing:FacettTests/ResponseMapperTests \
+            -only-testing:FacettTests/BLEParserPipelineTests \
+            -only-testing:FacettTests/GoProCommandTests \
             -only-testing:FacettTests/SettingsTests \
+            -only-testing:FacettTests/StateMachineTests \
             -quiet
