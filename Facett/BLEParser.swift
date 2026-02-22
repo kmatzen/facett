@@ -153,6 +153,8 @@ class BLEResponseMapper {
             return .batteryLevel(Int(entry.value)) // Internal Battery Bars (quantized level)
         case 3:
             return .externalBatteryPresent(entry.value == 1) // External Battery Present
+        case 4: return nil // System Hot (granular temp indicator, handled via case 6 overheating)
+        case 5: return nil // System Busy (duplicate of case 8)
         case 6: return .overheating(entry.value == 1)
         case 8: return .isBusy(entry.value == 1)
         case 10: return .encoding(entry.value == 1)

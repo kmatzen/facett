@@ -80,7 +80,7 @@ class BLEConnectionManager: ObservableObject {
     private var connectionRetryTimers: [UUID: Timer] = [:]
     private var connectionAttemptTimers: [UUID: Timer] = [:]
     private var maxRetryAttempts = 3
-    private var connectionTimeout: TimeInterval = 30.0
+    private var connectionTimeout: TimeInterval = 15.0
 
     // Callbacks
     var onConnectionSuccess: ((UUID) -> Void)?
@@ -91,7 +91,7 @@ class BLEConnectionManager: ObservableObject {
 
     /// Start connection retry process for a device
     func startConnectionRetry(for uuid: UUID, maxAttempts: Int = 3) {
-        ErrorHandler.info("Starting connection retry for device \(uuid)")
+        ErrorHandler.debug("Starting connection retry for device \(uuid)")
 
         connectionRetryCount[uuid] = 0
         maxRetryAttempts = maxAttempts
@@ -104,7 +104,7 @@ class BLEConnectionManager: ObservableObject {
     private func attemptConnection(_ uuid: UUID) {
         guard let currentAttempt = connectionRetryCount[uuid] else { return }
 
-        ErrorHandler.info("Connection attempt \(currentAttempt + 1)/\(maxRetryAttempts) for device \(uuid)")
+        ErrorHandler.debug("Connection attempt \(currentAttempt + 1)/\(maxRetryAttempts) for device \(uuid)")
 
         // Start connection timeout timer
         connectionAttemptTimers[uuid] = Timer.scheduledTimer(withTimeInterval: connectionTimeout, repeats: false) { [weak self] _ in
@@ -121,7 +121,7 @@ class BLEConnectionManager: ObservableObject {
 
     /// Handle successful connection
     func handleConnectionSuccess(_ uuid: UUID) {
-        ErrorHandler.info("Connection successful for device \(uuid)")
+        ErrorHandler.debug("Connection successful for device \(uuid)")
 
         // Cancel timers
         connectionAttemptTimers[uuid]?.invalidate()
@@ -173,7 +173,7 @@ class BLEConnectionManager: ObservableObject {
 
     /// Cancel connection retry for a device
     func cancelConnectionRetry(for uuid: UUID) {
-        ErrorHandler.info("Cancelling connection retry for device \(uuid)")
+        ErrorHandler.debug("Cancelling connection retry for device \(uuid)")
 
         connectionRetryTimers[uuid]?.invalidate()
         connectionAttemptTimers[uuid]?.invalidate()

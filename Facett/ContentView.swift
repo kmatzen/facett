@@ -25,14 +25,6 @@ struct ContentView: View {
         let mismatchedCameras = checkForModeMismatches()
 
         if !mismatchedCameras.isEmpty && !showModeMismatchModal {
-            ErrorHandler.info(
-                "Mode Mismatch Detected - Showing Modal",
-                context: [
-                    "mismatched_cameras": mismatchedCameras.map { camera in
-                        CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
-                    } as Any
-                ]
-            )
             modeMismatchCameras = mismatchedCameras
             showModeMismatchModal = true
         }
@@ -42,39 +34,28 @@ struct ContentView: View {
         let group = cameraGroupManager.effectiveGroup(bleManager: bleManager)
         let camerasToCheck = group.cameraIds.compactMap { bleManager.connectedGoPros[$0] }
 
-        // Debug logging
-        ErrorHandler.info(
-            "Mode Mismatch Check Debug",
-            context: [
-                "total_cameras_checked": camerasToCheck.count,
-                "camera_details": camerasToCheck.map { camera in
-                    let name = CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
-                    return "\(name): mode=\(camera.settings.mode), encoding=\(camera.status.isEncoding ?? false)"
-                }
-            ]
-        )
-
         let mismatchedCameras = camerasToCheck.filter { camera in
-            // Skip mode mismatch checks for recording cameras to avoid false positives
             if camera.status.isEncoding == true {
                 return false
             }
-
-            // Check if camera is in video mode (required for recording)
-            // Mode 12 = Video, Mode 17 = Photo, Mode 19 = Multishot (Burst Photo)
             return camera.settings.mode != 12
         }
 
-        ErrorHandler.info(
-            "Mode Mismatch Check Results",
-            context: [
-                "mismatched_count": mismatchedCameras.count,
-                "mismatched_cameras": mismatchedCameras.map { camera in
-                    let name = CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
-                    return "\(name): mode \(camera.settings.mode)"
-                }
-            ]
-        )
+        if mismatchedCameras.isEmpty {
+            ErrorHandler.debug("Mode mismatch check: all \(camerasToCheck.count) cameras in video mode")
+        } else {
+            ErrorHandler.info(
+                "Mode Mismatch Detected",
+                context: [
+                    "mismatched_count": mismatchedCameras.count,
+                    "total_checked": camerasToCheck.count,
+                    "mismatched_cameras": mismatchedCameras.map { camera in
+                        let name = CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
+                        return "\(name): mode \(camera.settings.mode)"
+                    }
+                ]
+            )
+        }
 
         return mismatchedCameras
     }
@@ -82,34 +63,11 @@ struct ContentView: View {
     private func handleRecordingAction() {
         let mismatchedCameras = checkForModeMismatches()
 
-        // Debug logging
-        ErrorHandler.info(
-            "Recording Action Debug",
-            context: [
-                "mismatched_cameras_count": mismatchedCameras.count,
-                "camera_modes": mismatchedCameras.map { camera in
-                    let name = CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
-                    return "\(name): mode \(camera.settings.mode)"
-                }
-            ]
-        )
-
         if !mismatchedCameras.isEmpty {
-            ErrorHandler.info(
-                "Showing Mode Mismatch Modal",
-                context: [
-                    "mismatched_cameras": mismatchedCameras.map { camera in
-                        CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
-                    }
-                ]
-            )
             modeMismatchCameras = mismatchedCameras
             showModeMismatchModal = true
         } else {
-            ErrorHandler.info(
-                "No Mode Mismatches - Starting Recording",
-                context: ["action": "start_recording"]
-            )
+            ErrorHandler.info("Starting recording for group")
             let group = cameraGroupManager.effectiveGroup(bleManager: bleManager)
             bleManager.startRecordingForCamerasInSet(group.cameraSerials)
         }
@@ -193,11 +151,7 @@ struct ContentView: View {
                               let bleManager = bleManager,
                               let cameraGroupManager = cameraGroupManager else { return }
 
-                        ErrorHandler.debug("Camera '\(cameraId)' received initial status - triggering immediate sync check")
-                        ErrorHandler.info(
-                            "Camera Status Updated - Checking Mode Mismatches",
-                            context: ["camera_id": cameraId.uuidString]
-                        )
+                        ErrorHandler.debug("Camera '\(cameraId)' received initial status - triggering sync check")
                         configManager.checkAndTriggerAutoSync(bleManager: bleManager, cameraGroupManager: cameraGroupManager)
 
                         // Check for mode mismatches and show modal if needed
