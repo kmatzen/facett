@@ -1,6 +1,6 @@
-# State Machines
+# State Machines & Status Logic
 
-Facett uses several implicit state machines to manage complex workflows. This document describes the states, transitions, and interactions — see the source code for implementation details.
+Facett uses a mix of state machines (sections 1, 4–8) and priority-based status evaluations (sections 2–3). This document describes the states, transitions, and interactions — see the source code for implementation details.
 
 ## 1. BLE Device Lifecycle
 
@@ -27,50 +27,38 @@ Facett uses several implicit state machines to manage complex workflows. This do
 
 ## 2. Camera Operational Status
 
+This is **not** a state machine — it's a priority-based evaluation. The code checks conditions top-to-bottom and returns the first match:
+
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Initializing   │───▶│     Ready       │───▶│    Recording    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                │                       │
-                                ▼                       ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │      Busy       │    │   Overheating   │
-                       └─────────────────┘    └─────────────────┘
-                                │                       │
-                                ▼                       ▼
-                       ┌─────────────────┐    ┌─────────────────┐
-                       │   Low Battery   │    │ Settings Mismatch│
-                       └─────────────────┘    └─────────────────┘
+hasReceivedInitialStatus == false?  ──▶  Initializing
+isOverheating == true?              ──▶  Overheating
+sdCardRemaining is nil or 0?        ──▶  No SD Card
+batteryLevel <= 1?                  ──▶  Low Battery
+isEncoding == true?                 ──▶  Recording
+settings differ from target?        ──▶  Settings Mismatch
+isReady == true?                    ──▶  Ready
+(none of the above)                 ──▶  Error
 ```
 
-### Priority Order (highest → lowest)
+A camera can match multiple conditions simultaneously — the one listed highest wins. For example, an overheating camera that is also recording will show as **Overheating**, not Recording.
 
-1. **Overheating** — `isOverheating == true`
-2. **No SD Card** — `sdCardRemaining` is nil or 0
-3. **Low Battery** — `batteryLevel <= 1`
-4. **Recording** — `isEncoding == true`
-5. **Settings Mismatch** — camera settings differ from target config
-6. **Ready** — `isReady == true`
-7. **Error** — `isReady == false` (catch-all)
-8. **Initializing** — `hasReceivedInitialStatus == false`
-
-See `CameraGroup.getCameraStatus(_:bleManager:)` for the implementation.
+See `CameraGroup.getCameraStatus(_:bleManager:)`.
 
 ## 3. Camera Group Status
 
-Aggregate status across all cameras in a group.
+Also a priority evaluation, not a state machine. Aggregates individual camera statuses into a single group status:
 
-### Priority Order (highest → lowest)
+```
+any camera has error?               ──▶  Error
+all cameras disconnected?           ──▶  Disconnected
+any camera recording?               ──▶  Recording
+any camera connecting?              ──▶  Connecting
+any camera initializing?            ──▶  Initializing
+all cameras ready?                  ──▶  Ready
+(otherwise)                         ──▶  Settings Mismatch
+```
 
-1. **Error** — any camera has an error
-2. **Recording** — any camera is recording
-3. **Connecting** — any camera is connecting
-4. **Initializing** — any camera is initializing
-5. **Ready** — all cameras are ready
-6. **Settings Mismatch** — some cameras disconnected or settings differ
-7. **Disconnected** — all cameras disconnected
-
-See `GroupStatus.overallStatus` for the implementation.
+See `GroupStatus.overallStatus`.
 
 ## 4. Control
 
