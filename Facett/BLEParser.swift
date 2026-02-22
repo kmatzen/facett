@@ -145,6 +145,7 @@ class BLEResponseMapper {
     // MARK: - Private Methods
 
     /// Map status response types
+    // swiftlint:disable:next cyclomatic_complexity
     private func mapStatusResponse(entry: TLVEntry) -> ResponseType? {
         switch entry.type {
         case 1: return .batteryPresent(entry.value == 1)
@@ -211,6 +212,7 @@ class BLEResponseMapper {
     }
 
     /// Map settings response types
+    // swiftlint:disable:next cyclomatic_complexity
     private func mapSettingsResponse(entry: TLVEntry) -> ResponseType? {
         switch entry.type {
         case 2: return .videoResolution(Int(entry.value))

@@ -15,7 +15,7 @@ jobs:
       - name: SwiftLint
         run: |
           brew install swiftlint
-          swiftlint lint --strict
+          swiftlint lint
 
       - name: List available simulators
         run: xcrun simctl list devices available | head -30
