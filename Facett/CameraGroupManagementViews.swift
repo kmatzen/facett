@@ -54,7 +54,10 @@ struct CameraGroupManagementView: View {
                     group: group,
                     cameraGroupManager: cameraGroupManager,
                     bleManager: bleManager,
-                    isPresented: .constant(true)
+                    isPresented: Binding(
+                        get: { selectedGroupForEdit != nil },
+                        set: { if !$0 { selectedGroupForEdit = nil } }
+                    )
                 )
             }
         }

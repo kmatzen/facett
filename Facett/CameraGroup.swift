@@ -189,7 +189,9 @@ class CameraGroupManager: ObservableObject {
     func removeCameraGroup(_ group: CameraGroup) {
         cameraGroups.removeAll { $0.id == group.id }
         if activeGroupId == group.id {
-            activeGroupId = cameraGroups.first?.id
+            let newActiveId = cameraGroups.first?.id
+            activeGroupId = newActiveId
+            userDefaults.set(newActiveId?.uuidString, forKey: activeGroupKey)
         }
         saveCameraGroups()
     }
