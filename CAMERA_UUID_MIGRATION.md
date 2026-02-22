@@ -21,41 +21,35 @@ The solution uses serial numbers (from AP SSID) as the primary stable identifier
 
 ### Modified: `CameraGroup`
 
-**Data Model** (line ~5):
-- Changed from `cameraIds: Set<UUID>` to `cameraSerials: Set<String>`
-- Camera groups now store serial numbers as the stable identifier
-
-### Modified: `CameraNameManager`
-
-**Serial-Based Storage** (line ~10):
-- Changed from `[UUID: String]` to `[String: String]` (serial → name)
-- Provides both UUID-based and serial-based lookup methods for compatibility
-- Stores display names keyed by serial number for persistence
+- Uses `cameraSerials: Set<String>` instead of UUIDs
+- Camera groups store serial numbers as the stable identifier
 
 ### Component: `CameraIdentityManager`
 
-Located at: `Facett/Facett/CameraIdentityManager.swift`
+**File**: `Facett/CameraIdentityManager.swift`
 
-**Key Features:**
-- Maintains runtime mappings: serial ↔ UUID (bidirectional)
-- Persists mappings to UserDefaults
-- Provides lookup to find which UUID currently has which serial
+Manages display names keyed by serial number and provides UUID/serial-based lookup:
 
-**Key Methods:**
 ```swift
-// Store a serial number for a UUID
-func storeSerialNumber(_ serialNumber: String, for uuid: UUID)
+func getDisplayName(for cameraId: UUID, currentName: String? = nil) -> String
+func getDisplayName(forSerial serial: String, currentName: String? = nil) -> String
+func storeCameraName(_ name: String, forSerial serial: String)
+```
 
-// Get the current UUID for a serial number
-func getUUID(forSerial serialNumber: String) -> UUID?
+### Component: `CameraSerialResolver`
 
-// Get the serial number for a UUID
-func getSerialNumber(forUUID uuid: UUID) -> String?
+**File**: `Facett/CameraIdentityManager.swift`
+
+Maintains bidirectional serial ↔ UUID mappings, persisted to UserDefaults:
+
+```swift
+func storeUUID(_ uuid: UUID, forSerial serial: String)
+func getUUID(forSerial serial: String) -> UUID?
+func getSerial(forUUID uuid: UUID) -> String?
 ```
 
 ### Modified: `BLEResponseHandler`
 
-**Serial Number Handling** (line ~321):
 - When AP SSID is received, stores the serial → UUID mapping
 - Also stores the display name keyed by serial number
 

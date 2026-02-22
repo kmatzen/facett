@@ -2,7 +2,7 @@
 
 ## Overview
 
-The GoPro Configurator app implements GoPro's proprietary Bluetooth Low Energy (BLE) protocol for camera control and status monitoring. This document details the protocol implementation, packet structure, and communication patterns.
+Facett implements GoPro's proprietary Bluetooth Low Energy (BLE) protocol for camera control and status monitoring. This document details the protocol implementation, packet structure, and communication patterns.
 
 ## Protocol Architecture
 
