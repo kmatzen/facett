@@ -171,7 +171,7 @@ class ConfigManager: ObservableObject {
 
             // Check if sync is already in progress
             if self.syncInProgress {
-                ErrorHandler.debug("🔄 Auto-sync: Skipping - sync already in progress")
+                ErrorHandler.debug("Auto-sync: Skipping - sync already in progress")
                 return
             }
 
@@ -190,12 +190,12 @@ class ConfigManager: ObservableObject {
         let targetSettings = getTargetSettings(for: cameraGroupManager.activeGroup)
         let configName = getSelectedConfig()?.name ?? getDefaultConfig()?.name ?? "Default"
 
-        ErrorHandler.info("🎯 Auto-sync using config: '\(configName)' (FPS: \(targetSettings.framesPerSecond))")
+        ErrorHandler.info("Auto-sync using config: '\(configName)' (FPS: \(targetSettings.framesPerSecond))")
 
         // Check if any connected cameras have mismatched settings
         var mismatchedCameras: [String] = []
         for (_, gopro) in bleManager.connectedGoPros {
-            ErrorHandler.debug("🔍 Auto-sync checking camera '\(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.name))'")
+            ErrorHandler.debug("Auto-sync checking camera '\(CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.name))'")
             ErrorHandler.debug("   Camera FPS: \(gopro.settings.framesPerSecond)")
             ErrorHandler.debug("   Target FPS: \(targetSettings.framesPerSecond)")
 
@@ -212,7 +212,7 @@ class ConfigManager: ObservableObject {
 
         // If mismatches found, trigger sync
         if !mismatchedCameras.isEmpty {
-            ErrorHandler.info("🔄 Auto-sync: Syncing \(mismatchedCameras.count) camera(s) to '\(configName)' config")
+            ErrorHandler.info("Auto-sync: Syncing \(mismatchedCameras.count) camera(s) to '\(configName)' config")
             ErrorHandler.info("   Cameras: \(mismatchedCameras.joined(separator: ", "))")
 
             // Set visual indicator
@@ -229,7 +229,7 @@ class ConfigManager: ObservableObject {
                 self.syncInProgress = false
             }
         } else {
-            ErrorHandler.info("✅ Auto-sync: All cameras match target settings")
+            ErrorHandler.debug("Auto-sync: All cameras match target settings")
             // Ensure sync indicator and state are cleared when no mismatches exist
             self.isAutoSyncing = false
             self.syncInProgress = false

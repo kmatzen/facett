@@ -40,29 +40,29 @@ class BLERecordingManager {
     func startRecording(for uuid: UUID) {
         guard let bleManager = bleManager else { return }
         guard let gopro = bleManager.connectedGoPros[uuid] else {
-            bleManager.log("❌ Cannot start recording - camera not found: \(uuid)")
+            bleManager.log("Cannot start recording - camera not found: \(uuid)")
             return
         }
 
-        bleManager.log("🎬 Starting recording for \(gopro.peripheral.name ?? "camera")")
+        bleManager.log("Starting recording for \(gopro.peripheral.name ?? "camera")")
 
         // Check camera mode before sending recording command
         let currentMode = modeManager?.getCameraMode(gopro) ?? .unknown
 
-        bleManager.log("📹 Current mode: \(currentMode.description)")
+        bleManager.log("Current mode: \(currentMode.description)")
 
         // If camera is not in video mode, switch it first
         if currentMode != .video {
-            bleManager.log("🔄 Switching to video mode first")
+            bleManager.log("Switching to video mode first")
 
             // Switch to video mode first
             modeManager?.switchToVideoMode(for: uuid) { [weak self] success in
                 if success {
-                    self?.bleManager?.log("✅ Mode switch successful, starting recording")
+                    self?.bleManager?.log("Mode switch successful, starting recording")
                     // Now start recording
                     self?.sendRecordingCommand(to: uuid, commandName: "start recording")
                 } else {
-                    self?.bleManager?.log("❌ Mode switch failed, cannot start recording")
+                    self?.bleManager?.log("Mode switch failed, cannot start recording")
                 }
             }
         } else {
@@ -154,10 +154,10 @@ class BLERecordingManager {
     private func sendRecordingCommand(to uuid: UUID, commandName: String) {
         guard let bleManager = bleManager else { return }
 
-        bleManager.log("🎥 Sending recording command: \(commandName) to \(uuid)")
+        bleManager.log("Sending recording command: \(commandName) to \(uuid)")
 
         let command: [UInt8] = [3, 1, 1, commandName.contains("start") ? 1 : 0]
-        bleManager.log("📤 Recording command bytes: \(command.map { String(format: "0x%02X", $0) }.joined(separator: " "))")
+        ErrorHandler.debug("Recording command bytes: \(command.map { String(format: "0x%02X", $0) }.joined(separator: " "))")
 
         bleManager.sendCommand(command,
                     to: uuid,
