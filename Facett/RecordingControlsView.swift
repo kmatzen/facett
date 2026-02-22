@@ -208,15 +208,8 @@ struct RecordingControlsView: View {
                     let group = effectiveGroup
                     let cameraIds = Set(group.cameraIds)
                     bleManager.setTargetCameras(cameraIds)
-                    if cameraGroupManager.activeGroup != nil {
-                        for cameraId in cameraIds {
-                            if bleManager.discoveredGoPros[cameraId] != nil {
-                                bleManager.connectToGoPro(uuid: cameraId)
-                            }
-                        }
-                    } else {
-                        bleManager.connectCameras()
-                    }
+                    let discoveredInGroup = cameraIds.filter { bleManager.discoveredGoPros[$0] != nil }
+                    bleManager.connectStaggered(Array(discoveredInGroup))
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: "wifi")

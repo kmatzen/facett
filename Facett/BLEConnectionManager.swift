@@ -80,7 +80,7 @@ class BLEConnectionManager: ObservableObject {
     private var connectionRetryTimers: [UUID: Timer] = [:]
     private var connectionAttemptTimers: [UUID: Timer] = [:]
     private var maxRetryAttempts = 3
-    private var connectionTimeout: TimeInterval = 10.0
+    private var connectionTimeout: TimeInterval = 30.0
 
     // Callbacks
     var onConnectionSuccess: ((UUID) -> Void)?

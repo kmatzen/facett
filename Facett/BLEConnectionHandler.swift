@@ -26,6 +26,9 @@ class BLEConnectionHandler {
         // Note: Camera name will be stored when we receive the apSSID (serial number)
         // in BLEResponseHandler after the camera connects and sends status
 
+        // Notify connection manager to cancel timeout timers
+        bleManager.connectionManager.handleConnectionSuccess(uuid)
+
         // Clear retry status on successful connection on main thread
         DispatchQueue.main.async {
             bleManager.connectionRetryStatus.removeValue(forKey: uuid)
@@ -53,6 +56,9 @@ class BLEConnectionHandler {
 
         let uuid = peripheral.identifier
         ErrorHandler.info("\(CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: peripheral.name)) disconnected.")
+
+        // Cancel any pending connection retry timers
+        bleManager.connectionManager.cancelConnectionRetry(for: uuid)
 
         bleManager.cleanupDeviceState(for: uuid)
 
