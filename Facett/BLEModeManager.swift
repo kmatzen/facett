@@ -51,13 +51,13 @@ class BLEModeManager {
         }
 
         guard let gopro = bleManager.connectedGoPros[uuid] else {
-            bleManager.log("❌ Cannot switch mode - camera not found: \(uuid)")
+            bleManager.log("Cannot switch mode - camera not found: \(uuid)")
             completion(false)
             return
         }
 
         let modeName = mode.description
-        bleManager.log("🔄 Switching \(gopro.peripheral.name ?? "camera") to \(modeName) mode")
+        bleManager.log("Switching \(gopro.peripheral.name ?? "camera") to \(modeName) mode")
 
         if let gopro = bleManager.connectedGoPros[uuid] {
             let cameraName = CameraIdentityManager.shared.getDisplayName(for: uuid, currentName: gopro.name)
@@ -108,7 +108,7 @@ class BLEModeManager {
                     completed = true
                     self.pendingModeSwitches.removeValue(forKey: uuid)
                     let elapsed = Date().timeIntervalSince(startTime)
-                    bleManager.log("✅ Successfully switched to \(modeName) mode in \(String(format: "%.1f", elapsed))s")
+                    bleManager.log("Successfully switched to \(modeName) mode in \(String(format: "%.1f", elapsed))s")
                     completion(true)
                 }
             }
@@ -124,7 +124,7 @@ class BLEModeManager {
 
             if let gopro = bleManager.connectedGoPros[uuid] {
                 let currentMode = self.getCameraMode(gopro)
-                bleManager.log("❌ Failed to switch to \(modeName) mode after \(String(format: "%.1f", self.modeSwitchTimeout))s (current: \(currentMode.description))")
+                bleManager.log("Failed to switch to \(modeName) mode after \(String(format: "%.1f", self.modeSwitchTimeout))s (current: \(currentMode.description))")
             }
             completion(false)
         }

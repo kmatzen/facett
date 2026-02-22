@@ -42,7 +42,7 @@ class ErrorHandler {
 
         // Print to console in debug builds
         #if DEBUG
-        print("❌ ERROR: \(fullMessage)")
+        print("ERROR: \(fullMessage)")
         if let error = error {
             print("   Error: \(error.localizedDescription)")
         }
@@ -79,7 +79,7 @@ class ErrorHandler {
 
         // Print to console in debug builds
         #if DEBUG
-        print("⚠️ WARNING: \(fullMessage)")
+        print("WARNING: \(fullMessage)")
         if !context.isEmpty {
             let contextStr = context.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
             print("   Context: \(contextStr)")
@@ -103,7 +103,7 @@ class ErrorHandler {
 
         // Print to console in debug builds
         #if DEBUG
-        print("ℹ️ INFO: \(fullMessage)")
+        print("INFO: \(fullMessage)")
         if !context.isEmpty {
             let contextStr = context.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
             print("   Context: \(contextStr)")
@@ -127,7 +127,7 @@ class ErrorHandler {
         logger.debug("\(fullMessage)")
 
         // Print to console
-        print("🔍 DEBUG: \(fullMessage)")
+        print("DEBUG: \(fullMessage)")
         if !context.isEmpty {
             let contextStr = context.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
             print("   Context: \(contextStr)")

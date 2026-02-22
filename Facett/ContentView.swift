@@ -193,7 +193,7 @@ struct ContentView: View {
                               let bleManager = bleManager,
                               let cameraGroupManager = cameraGroupManager else { return }
 
-                        ErrorHandler.debug("🔍 Camera '\(cameraId)' received initial status - triggering immediate sync check")
+                        ErrorHandler.debug("Camera '\(cameraId)' received initial status - triggering immediate sync check")
                         ErrorHandler.info(
                             "Camera Status Updated - Checking Mode Mismatches",
                             context: ["camera_id": cameraId.uuidString]
