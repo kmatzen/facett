@@ -184,6 +184,7 @@ struct CameraGroupEditorView: View {
                         showingCameraSelector = true
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityIdentifier("AddCameraButton")
                 }
             }
         }

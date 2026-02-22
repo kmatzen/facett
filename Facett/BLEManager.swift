@@ -1722,6 +1722,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     /// Refresh discovered cameras without disconnecting connected ones
     func refreshDiscoveredCameras() {
+        guard !FacettApp.isDemoMode else { return }
         DispatchQueue.main.async {
             // Clear only discovered cameras (not connected ones)
             self.discoveredGoPros.removeAll()
