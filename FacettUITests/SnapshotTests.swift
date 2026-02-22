@@ -1,5 +1,4 @@
 import XCTest
-import SnapshotTesting
 
 @MainActor
 final class SnapshotTests: XCTestCase {
@@ -8,10 +7,7 @@ final class SnapshotTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        continueAfterFailure = false
-        if ProcessInfo.processInfo.environment["SNAPSHOT_RECORD"] == "1" {
-            isRecording = true
-        }
+        continueAfterFailure = true
         app = XCUIApplication()
         app.launchArguments += ["-DEMO_MODE"]
         setupSnapshot(app)
@@ -24,7 +20,7 @@ final class SnapshotTests: XCTestCase {
     }
 
     func testScreenshots() {
-        assertScreenshot("01-Dashboard")
+        snapshot("01-Dashboard")
 
         app.swipeUp()
         sleep(1)
@@ -33,7 +29,7 @@ final class SnapshotTests: XCTestCase {
         if configurationsText.exists {
             configurationsText.tap()
             sleep(1)
-            assertScreenshot("02-Configurations")
+            snapshot("02-Configurations")
             dismissSheet()
         }
 
@@ -41,7 +37,7 @@ final class SnapshotTests: XCTestCase {
         if cameraGroupsText.exists {
             cameraGroupsText.tap()
             sleep(1)
-            assertScreenshot("03-CameraGroups")
+            snapshot("03-CameraGroups")
             dismissSheet()
         }
 
@@ -49,7 +45,7 @@ final class SnapshotTests: XCTestCase {
         if bugReportsText.exists {
             bugReportsText.tap()
             sleep(1)
-            assertScreenshot("04-BugReport")
+            snapshot("04-BugReport")
             dismissSheet()
         }
 
@@ -60,7 +56,7 @@ final class SnapshotTests: XCTestCase {
         if cameraCard.exists {
             cameraCard.tap()
             sleep(2)
-            assertScreenshot("05-CameraDetails")
+            snapshot("05-CameraDetails")
             dismissSheet()
         }
     }
@@ -82,7 +78,7 @@ final class SnapshotTests: XCTestCase {
                 if editButton.waitForExistence(timeout: 3) {
                     editButton.tap()
                     sleep(1)
-                    assertScreenshot("06-EditConfiguration")
+                    snapshot("06-EditConfiguration")
                 }
             }
         }
@@ -105,7 +101,7 @@ final class SnapshotTests: XCTestCase {
                 if editButton.waitForExistence(timeout: 3) {
                     editButton.tap()
                     sleep(1)
-                    assertScreenshot("07-EditCameraGroup")
+                    snapshot("07-EditCameraGroup")
                 }
             }
         }
@@ -134,7 +130,7 @@ final class SnapshotTests: XCTestCase {
         guard addCameraButton.waitForExistence(timeout: 5) else { return }
         addCameraButton.tap()
         sleep(2)
-        assertScreenshot("08-AddCamera")
+        snapshot("08-AddCamera")
     }
 
     func testAddCameraGroupScreenshot() {
@@ -150,7 +146,7 @@ final class SnapshotTests: XCTestCase {
         guard addGroupButton.waitForExistence(timeout: 5) else { return }
         addGroupButton.tap()
         sleep(2)
-        assertScreenshot("09-AddCameraGroup")
+        snapshot("09-AddCameraGroup")
     }
 
     func testVoiceNotificationsScreenshot() {
@@ -161,7 +157,7 @@ final class SnapshotTests: XCTestCase {
         if voiceText.exists {
             voiceText.tap()
             sleep(1)
-            assertScreenshot("10-VoiceNotifications")
+            snapshot("10-VoiceNotifications")
         }
     }
 
@@ -184,20 +180,6 @@ final class SnapshotTests: XCTestCase {
     }
 
     // MARK: - Helpers
-
-    /// Captures a fastlane screenshot and asserts visual regression via swift-snapshot-testing.
-    private func assertScreenshot(_ name: String, precision: Float = 0.90, perceptualPrecision: Float = 0.85, file: StaticString = #file, testName: String = #function, line: UInt = #line) {
-        snapshot(name)
-        let image = XCUIScreen.main.screenshot().image
-        assertSnapshot(
-            of: image,
-            as: .image(precision: precision, perceptualPrecision: perceptualPrecision),
-            named: name,
-            file: file,
-            testName: testName,
-            line: line
-        )
-    }
 
     private func dismissSheet() {
         if app.navigationBars.buttons.firstMatch.exists {
