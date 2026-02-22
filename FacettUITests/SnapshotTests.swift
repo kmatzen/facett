@@ -9,6 +9,7 @@ final class SnapshotTests: XCTestCase {
     override func setUp() {
         super.setUp()
         continueAfterFailure = false
+        // isRecording = true
         app = XCUIApplication()
         app.launchArguments += ["-DEMO_MODE"]
         setupSnapshot(app)
@@ -110,49 +111,44 @@ final class SnapshotTests: XCTestCase {
 
     func testAddCameraScreenshot() {
         app.swipeUp()
-        sleep(1)
+        sleep(2)
 
         let cameraGroupsText = app.staticTexts["Camera Groups"]
-        if cameraGroupsText.exists {
-            cameraGroupsText.tap()
-            sleep(1)
+        guard cameraGroupsText.waitForExistence(timeout: 5) else { return }
+        cameraGroupsText.tap()
+        sleep(2)
 
-            let ellipsisButton = app.buttons["Group Actions"]
-            if ellipsisButton.waitForExistence(timeout: 3) {
-                ellipsisButton.tap()
-                sleep(1)
-                let editButton = app.buttons["Edit"]
-                if editButton.waitForExistence(timeout: 3) {
-                    editButton.tap()
-                    sleep(1)
+        let ellipsisButton = app.buttons["Group Actions"]
+        guard ellipsisButton.waitForExistence(timeout: 5) else { return }
+        ellipsisButton.tap()
+        sleep(2)
 
-                    let addCameraButton = app.buttons["AddCameraButton"]
-                    if addCameraButton.waitForExistence(timeout: 3) {
-                        addCameraButton.tap()
-                        sleep(1)
-                        assertScreenshot("08-AddCamera")
-                    }
-                }
-            }
-        }
+        let editButton = app.buttons["Edit"]
+        guard editButton.waitForExistence(timeout: 5) else { return }
+        editButton.tap()
+        sleep(2)
+
+        let addCameraButton = app.buttons["AddCameraButton"]
+        guard addCameraButton.waitForExistence(timeout: 5) else { return }
+        addCameraButton.tap()
+        sleep(2)
+        assertScreenshot("08-AddCamera")
     }
 
     func testAddCameraGroupScreenshot() {
         app.swipeUp()
-        sleep(1)
+        sleep(2)
 
         let cameraGroupsText = app.staticTexts["Camera Groups"]
-        if cameraGroupsText.exists {
-            cameraGroupsText.tap()
-            sleep(1)
+        guard cameraGroupsText.waitForExistence(timeout: 5) else { return }
+        cameraGroupsText.tap()
+        sleep(2)
 
-            let addGroupButton = app.buttons["Add Group"]
-            if addGroupButton.waitForExistence(timeout: 3) {
-                addGroupButton.tap()
-                sleep(1)
-                assertScreenshot("09-AddCameraGroup")
-            }
-        }
+        let addGroupButton = app.buttons["Add Group"]
+        guard addGroupButton.waitForExistence(timeout: 5) else { return }
+        addGroupButton.tap()
+        sleep(2)
+        assertScreenshot("09-AddCameraGroup")
     }
 
     func testVoiceNotificationsScreenshot() {
