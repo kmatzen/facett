@@ -15,6 +15,7 @@ class BLEResponseHandler {
         updateGoProStatus(uuid: peripheral.identifier, with: responses)
     }
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func updateGoProStatus(uuid: UUID, with responses: [ResponseType]) {
         guard let bleManager = bleManager else { return }
 
