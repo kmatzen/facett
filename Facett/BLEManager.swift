@@ -413,13 +413,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             return
         }
 
-        // Add command to pending commands for timeout tracking
         addPendingCommand(command, commandName: commandName, to: uuid, timeout: defaultCommandTimeout, requiresControl: requiresControl)
 
         log("📡 Writing command to peripheral: \(commandName)")
         bleCommandQueue.async {
             gopro.peripheral.writeValue(Data(command), for: characteristic, type: .withResponse)
         }
+
 
         log("📤 Sent \(commandName) command to \(gopro.peripheral.name ?? "a device")")
     }
@@ -433,7 +433,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     /// Check if a peripheral is in a valid state for connection retry
-    private func isValidForRetry(_ peripheral: CBPeripheral) -> Bool {
+    private func isValidForRetry(_ peripheral: PeripheralContainer) -> Bool {
         switch peripheral.state {
         case .disconnected:
             return true
@@ -700,12 +700,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     private func sendCommand(
-        to peripheral: CBPeripheral,
+        to peripheral: PeripheralContainer,
         characteristicUUID: CBUUID,
         command: [UInt8],
         description: String
     ) {
-        // Validate peripheral state before sending command
         guard peripheral.state == .connected else {
             log("❌ Cannot send command to \(peripheral.name ?? "device") - peripheral state: \(peripheral.state.rawValue)")
             return
@@ -1255,10 +1254,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Parse the response to update camera settings with actual values from the camera
         responseHandler.handleQueryResponse(data, for: peripheral)
 
-        // Force a settings query to get the updated state
-        // This ensures the camera's settings are properly reflected in the UI
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.queryAllSettings(from: peripheral)
+            guard let self = self, let gopro = self.connectedGoPros[peripheral.identifier] else { return }
+            self.queryAllSettings(from: gopro.peripheral)
         }
     }
 
@@ -1744,7 +1742,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     private func resetDeviceState() {
         for (_, gopro) in connectedGoPros {
-            centralManager.cancelPeripheralConnection(gopro.peripheral)
+            if let cbPeripheral = gopro.peripheral.cbPeripheral {
+                centralManager.cancelPeripheralConnection(cbPeripheral)
+            }
         }
         self.connectedGoPros.removeAll()
         self.discoveredGoPros.removeAll()
@@ -1829,7 +1829,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             self.connectingGoPros[uuid] = gopro
         }
 
-        centralManager.connect(gopro.peripheral, options: nil)
+        if let cbPeripheral = gopro.peripheral.cbPeripheral {
+            centralManager.connect(cbPeripheral, options: nil)
+        }
     }
 
     /// Handle connection timeout for a specific camera
@@ -1839,7 +1841,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let cameraName = CameraIdentityManager.shared.getDisplayName(for: gopro.peripheral.identifier, currentName: gopro.peripheral.name)
         log("⏰ Connection timeout for \(cameraName) after \(connectionTimeout)s")
 
-        // Log timeout for crash reporting with detailed context
         CrashReporter.shared.logError(
             "BLE Connection Timeout",
             error: nil,
@@ -1853,17 +1854,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             appStateContext: createAppStateContext()
         )
 
-        // Cancel the connection attempt
-        centralManager.cancelPeripheralConnection(gopro.peripheral)
+        if let cbPeripheral = gopro.peripheral.cbPeripheral {
+            centralManager.cancelPeripheralConnection(cbPeripheral)
+        }
 
-        // Clean up
         DispatchQueue.main.async {
             self.connectingGoPros.removeValue(forKey: uuid)
             self.connectionAttemptTimers.removeValue(forKey: uuid)
         }
 
-        // Trigger retry logic by calling the existing connection failure handler
-        centralManager(centralManager, didFailToConnect: gopro.peripheral, error: nil)
+        if let cbPeripheral = gopro.peripheral.cbPeripheral {
+            centralManager(centralManager, didFailToConnect: cbPeripheral, error: nil)
+        }
     }
 
     private func retryConnection(for uuid: UUID) {
@@ -1892,7 +1894,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 self?.handleConnectionTimeout(for: uuid)
             }
         }
-        centralManager.connect(gopro.peripheral, options: nil)
+        if let cbPeripheral = gopro.peripheral.cbPeripheral {
+            centralManager.connect(cbPeripheral, options: nil)
+        }
     }
 
     func disconnectFromGoPro(uuid: UUID, sleep: Bool = false) {
@@ -1910,7 +1914,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         } else {
             // For normal disconnect, release control and disconnect immediately
             releaseControl(for: uuid)
-            centralManager.cancelPeripheralConnection(gopro.peripheral)
+            if let cbPeripheral = gopro.peripheral.cbPeripheral {
+                centralManager.cancelPeripheralConnection(cbPeripheral)
+            }
             log("Disconnecting \(gopro.peripheral.name ?? "GoPro")...")
         }
     }
@@ -1959,7 +1965,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             if self.pendingSleepCommands.contains(uuid) {
                 self.log("Sleep command timeout for \(gopro.peripheral.name ?? "device"), disconnecting anyway")
                 self.pendingSleepCommands.remove(uuid)
-                self.centralManager.cancelPeripheralConnection(gopro.peripheral)
+                if let cbPeripheral = gopro.peripheral.cbPeripheral {
+                    self.centralManager.cancelPeripheralConnection(cbPeripheral)
+                }
             }
         }
     }
@@ -1979,7 +1987,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             if self.pendingPowerDownCommands.contains(uuid) {
                 self.log("Power down command timeout for \(gopro.peripheral.name ?? "device"), disconnecting anyway")
                 self.pendingPowerDownCommands.remove(uuid)
-                self.centralManager.cancelPeripheralConnection(gopro.peripheral)
+                if let cbPeripheral = gopro.peripheral.cbPeripheral {
+                    self.centralManager.cancelPeripheralConnection(cbPeripheral)
+                }
             }
         }
     }
@@ -2110,7 +2120,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
 
-    private func queryDeviceStatus(for peripheral: CBPeripheral, command: [UInt8], description: String) {
+    private func queryDeviceStatus(for peripheral: PeripheralContainer, command: [UInt8], description: String) {
         sendCommand(
             to: peripheral,
             characteristicUUID: Constants.UUIDs.query,
@@ -2119,9 +2129,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         )
     }
 
-    private func queryDeviceSetting(for peripheral: CBPeripheral, command: [UInt8], description: String) {
-
-
+    private func queryDeviceSetting(for peripheral: PeripheralContainer, command: [UInt8], description: String) {
         guard connectedGoPros[peripheral.identifier]?.hasControl == true else {
             return
         }
@@ -2131,23 +2139,20 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             return
         }
 
-        bleCommandQueue.async{
+        bleCommandQueue.async {
             peripheral.writeValue(Data(command), for: characteristic, type: .withResponse)
         }
         log("Requested \(description) for \(peripheral.name ?? "a device"). Command: \(command).")
     }
 
-    private func queryAllSettings(from peripheral: CBPeripheral) {
-        // Query all settings to get the updated state after sending settings
-            queryDeviceSetting(for: peripheral, command: GoProCommands.Settings.settings1, description: "consolidated settings1")
-            queryDeviceSetting(for: peripheral, command: GoProCommands.Settings.settings2, description: "consolidated settings2")
-            queryDeviceSetting(for: peripheral, command: GoProCommands.Settings.settings3, description: "consolidated settings3")
+    private func queryAllSettings(from peripheral: PeripheralContainer) {
+        queryDeviceSetting(for: peripheral, command: GoProCommands.Settings.settings1, description: "consolidated settings1")
+        queryDeviceSetting(for: peripheral, command: GoProCommands.Settings.settings2, description: "consolidated settings2")
+        queryDeviceSetting(for: peripheral, command: GoProCommands.Settings.settings3, description: "consolidated settings3")
     }
 
     // MARK: - Utility Functions
-    private func findCharacteristic(for peripheral: CBPeripheral, uuid: CBUUID) -> CBCharacteristic? {
-
-
+    private func findCharacteristic(for peripheral: PeripheralContainer, uuid: CBUUID) -> CBCharacteristic? {
         return peripheral.services?.flatMap { $0.characteristics ?? [] }.first { $0.uuid == uuid }
     }
 
@@ -2208,27 +2213,23 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
 
-    func readWiFiCredentialsFromService(for peripheral: CBPeripheral) {
-        // Find the GoPro WiFi service
+    func readWiFiCredentialsFromService(for peripheral: PeripheralContainer) {
         guard let wifiService = peripheral.services?.first(where: { $0.uuid == Constants.UUIDs.goproWiFiService }) else {
             return
         }
 
-        // Find and read the WiFi SSID characteristic
         if let ssidCharacteristic = wifiService.characteristics?.first(where: { $0.uuid == Constants.UUIDs.wifiAPSSID }) {
             if ssidCharacteristic.properties.contains(.read) {
                 peripheral.readValue(for: ssidCharacteristic)
             }
         }
 
-        // Find and read the WiFi password characteristic
         if let passwordCharacteristic = wifiService.characteristics?.first(where: { $0.uuid == Constants.UUIDs.wifiAPPassword }) {
             if passwordCharacteristic.properties.contains(.read) {
                 peripheral.readValue(for: passwordCharacteristic)
             }
         }
 
-        // Find and read the WiFi AP state characteristic
         if let stateCharacteristic = wifiService.characteristics?.first(where: { $0.uuid == Constants.UUIDs.wifiAPState }) {
             if stateCharacteristic.properties.contains(.read) {
                 peripheral.readValue(for: stateCharacteristic)
@@ -2403,7 +2404,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         recordingManager.stopRecordingForCamerasInSet(Set(cameraIds))
     }
 
-    func sendSettings(to peripheral: CBPeripheral, settings: GoProSettings? = nil) {
+    func sendSettings(to peripheral: PeripheralContainer, settings: GoProSettings? = nil) {
         guard let characteristic = findCharacteristic(for: peripheral, uuid: Constants.UUIDs.settings) else {
             log("Settings characteristic not found for \(peripheral.name ?? "a device").")
             return
@@ -2414,9 +2415,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             return
         }
 
-        // Settings will be updated when we receive responses from the camera
-
-        // Explicitly send each setting
         sendSetting(peripheral, characteristic, id: 2, value: targetSettings.videoResolution)
         sendSetting(peripheral, characteristic, id: 3, value: targetSettings.framesPerSecond)
         sendSetting(peripheral, characteristic, id: 59, value: targetSettings.autoPowerDown)
@@ -2433,8 +2431,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         sendSetting(peripheral, characteristic, id: 118, value: targetSettings.ev)
         sendSetting(peripheral, characteristic, id: 124, value: targetSettings.bitrate)
         sendSetting(peripheral, characteristic, id: 139, value: targetSettings.rawAudio)
-        // Note: Mode setting (id: 144) is not sent via BLE as the protocol cannot change capture mode
-        // Users must manually switch cameras to video mode using the camera's physical controls
         sendSetting(peripheral, characteristic, id: 145, value: targetSettings.shutter)
         sendSetting(peripheral, characteristic, id: 149, value: targetSettings.wind)
         sendSetting(peripheral, characteristic, id: 167, value: targetSettings.hindsight)
@@ -2446,16 +2442,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         sendSetting(peripheral, characteristic, id: 87, value: targetSettings.beeps)
         sendSetting(peripheral, characteristic, id: 91, value: targetSettings.led)
 
-        // Send the current date and time
         setDateTime(for: peripheral.identifier)
     }
 
-    private func sendSetting(_ peripheral: CBPeripheral, _ characteristic: CBCharacteristic, id: UInt8, value: Int) {
+    private func sendSetting(_ peripheral: PeripheralContainer, _ characteristic: CBCharacteristic, id: UInt8, value: Int) {
         let command: [UInt8] = [
-            3, // Length of the command
-            id, // Setting ID
-            1, // Length of the value
-            UInt8(value) // Value
+            3,
+            id,
+            1,
+            UInt8(value)
         ]
         let data = Data(command)
         bleCommandQueue.async {

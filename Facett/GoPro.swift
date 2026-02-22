@@ -1,6 +1,60 @@
 import Foundation
 import CoreBluetooth
 
+// MARK: - Peripheral Container
+class PeripheralContainer {
+    let identifier: UUID
+    let name: String?
+    let cbPeripheral: CBPeripheral?
+
+    var state: CBPeripheralState {
+        cbPeripheral?.state ?? .disconnected
+    }
+
+    var delegate: CBPeripheralDelegate? {
+        get { cbPeripheral?.delegate }
+        set { cbPeripheral?.delegate = newValue }
+    }
+
+    init(peripheral: CBPeripheral) {
+        self.identifier = peripheral.identifier
+        self.name = peripheral.name
+        self.cbPeripheral = peripheral
+    }
+
+    init(identifier: UUID, name: String?) {
+        self.identifier = identifier
+        self.name = name
+        self.cbPeripheral = nil
+    }
+
+    var isDemo: Bool { cbPeripheral == nil }
+
+    func writeValue(_ data: Data, for characteristic: CBCharacteristic, type: CBCharacteristicWriteType) {
+        cbPeripheral?.writeValue(data, for: characteristic, type: type)
+    }
+
+    func discoverServices(_ serviceUUIDs: [CBUUID]?) {
+        cbPeripheral?.discoverServices(serviceUUIDs)
+    }
+
+    func discoverCharacteristics(_ characteristicUUIDs: [CBUUID]?, for service: CBService) {
+        cbPeripheral?.discoverCharacteristics(characteristicUUIDs, for: service)
+    }
+
+    func readValue(for characteristic: CBCharacteristic) {
+        cbPeripheral?.readValue(for: characteristic)
+    }
+
+    func setNotifyValue(_ enabled: Bool, for characteristic: CBCharacteristic) {
+        cbPeripheral?.setNotifyValue(enabled, for: characteristic)
+    }
+
+    var services: [CBService]? {
+        cbPeripheral?.services
+    }
+}
+
 // MARK: - Camera Status (Real-time updates)
 class CameraStatusData: ObservableObject {
     // Statuses (keep optional) - these need real-time UI updates
@@ -263,14 +317,20 @@ class GoPro: ObservableObject, Identifiable {
         peripheral.name
     }
 
-    @Published var peripheral: CBPeripheral // Core Bluetooth peripheral
+    @Published var peripheral: PeripheralContainer
     @Published var hasControl: Bool = false
-    @Published var settings: GoProSettings // Value-based settings (triggers UI update when replaced)
-    @Published var status: CameraStatusData // Real-time status updates
-    @Published var hasReceivedInitialStatus: Bool = false // Track if camera has received first status update
+    @Published var settings: GoProSettings
+    @Published var status: CameraStatusData
+    @Published var hasReceivedInitialStatus: Bool = false
 
     init(peripheral: CBPeripheral) {
-        self.peripheral = peripheral
+        self.peripheral = PeripheralContainer(peripheral: peripheral)
+        self.settings = GoProSettings()
+        self.status = CameraStatusData()
+    }
+
+    init(identifier: UUID, name: String?) {
+        self.peripheral = PeripheralContainer(identifier: identifier, name: name)
         self.settings = GoProSettings()
         self.status = CameraStatusData()
     }
