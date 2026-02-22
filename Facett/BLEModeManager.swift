@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 import CoreBluetooth
 
 /// Manages camera mode operations for GoPro cameras
@@ -6,6 +7,9 @@ class BLEModeManager {
 
     // MARK: - Dependencies
     private weak var bleManager: BLEManager?
+
+    private let modeSwitchTimeout: TimeInterval = 5.0
+    private var pendingModeSwitches: [UUID: AnyCancellable] = [:]
 
     // MARK: - Initialization
     init(bleManager: BLEManager) {
@@ -71,21 +75,58 @@ class BLEModeManager {
                     commandName: "switch to \(modeName.lowercased()) mode",
                     requiresControl: true)
 
-        // Set a timeout for mode switch
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-            // Check if mode switch was successful
-            if let gopro = bleManager.connectedGoPros[uuid] {
-                let newMode = self.getCameraMode(gopro)
-                let success = newMode == mode
-                if success {
-                    bleManager.log("✅ Successfully switched to \(modeName) mode")
-                } else {
-                    bleManager.log("❌ Failed to switch to \(modeName) mode (current: \(newMode.description))")
+        awaitModeChange(uuid: uuid, expectedMode: mode, modeName: modeName, completion: completion)
+    }
+
+    /// Subscribe to status updates and complete as soon as the mode matches.
+    /// Falls back to timeout after modeSwitchTimeout seconds.
+    private func awaitModeChange(uuid: UUID, expectedMode: CameraMode, modeName: String, completion: @escaping (Bool) -> Void) {
+        guard let bleManager = bleManager else {
+            completion(false)
+            return
+        }
+
+        // Cancel any existing subscription for this camera
+        pendingModeSwitches[uuid]?.cancel()
+
+        var completed = false
+        let startTime = Date()
+
+        let subscription = bleManager.$connectedGoPros
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] cameras in
+                guard !completed, let self = self else { return }
+
+                guard let gopro = cameras[uuid] else {
+                    completed = true
+                    self.pendingModeSwitches.removeValue(forKey: uuid)
+                    completion(false)
+                    return
                 }
-                completion(success)
-            } else {
-                completion(false)
+
+                if self.getCameraMode(gopro) == expectedMode {
+                    completed = true
+                    self.pendingModeSwitches.removeValue(forKey: uuid)
+                    let elapsed = Date().timeIntervalSince(startTime)
+                    bleManager.log("✅ Successfully switched to \(modeName) mode in \(String(format: "%.1f", elapsed))s")
+                    completion(true)
+                }
             }
+
+        pendingModeSwitches[uuid] = subscription
+
+        // Timeout fallback
+        DispatchQueue.main.asyncAfter(deadline: .now() + modeSwitchTimeout) { [weak self] in
+            guard !completed, let self = self else { return }
+            completed = true
+            self.pendingModeSwitches[uuid]?.cancel()
+            self.pendingModeSwitches.removeValue(forKey: uuid)
+
+            if let gopro = bleManager.connectedGoPros[uuid] {
+                let currentMode = self.getCameraMode(gopro)
+                bleManager.log("❌ Failed to switch to \(modeName) mode after \(String(format: "%.1f", self.modeSwitchTimeout))s (current: \(currentMode.description))")
+            }
+            completion(false)
         }
     }
 
