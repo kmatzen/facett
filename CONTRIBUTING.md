@@ -30,15 +30,47 @@ open Facett.xcodeproj
 
 All PRs must pass the existing test suite. Add tests for new functionality.
 
+### Running Tests
+
 ```bash
-./run_tests.sh unit    # Run unit tests
+./run_tests.sh unit          # Unit tests (no hardware)
+./run_tests.sh ui            # UI tests (simulator)
+./run_tests.sh integration   # Integration tests (mocked BLE)
+./run_tests.sh device        # Device tests (real GoPro required)
+./run_tests.sh all           # All of the above
 ```
 
-Test classes live in `FacettTests/`. Key suites:
-- `PacketReconstructorTests` / `TLVParserTests` / `ResponseMapperTests` — BLE protocol parsing
-- `GoProCommandTests` — command byte array correctness
-- `SettingsTests` — configuration management
-- `StateMachineTests` — state machine logic
+Or run directly with xcodebuild:
+
+```bash
+xcodebuild test \
+    -project Facett.xcodeproj \
+    -scheme Facett \
+    -destination "platform=iOS Simulator,name=iPhone 16" \
+    -only-testing:FacettTests \
+    -quiet
+```
+
+### Test Suites
+
+| Suite | What it covers |
+|-------|---------------|
+| `PacketReconstructorTests` | BLE packet header parsing, multi-packet assembly |
+| `TLVParserTests` | TLV decoding (single/multiple entries, edge cases) |
+| `ResponseMapperTests` | TLV → `ResponseType` mapping |
+| `BLEParserPipelineTests` | End-to-end parsing pipeline |
+| `GoProCommandTests` | Command byte array correctness |
+| `SettingsTests` | Configuration management, validation |
+| `StateMachineTests` | State machine priority and transitions |
+| `CameraGroupTests` | Group CRUD, serial management |
+| `CameraSettingDescriptionTests` | Human-readable setting descriptions |
+| `ErrorHandlerTests` | Recovery strategy selection |
+
+### Notes
+
+- BLE hardware tests require a real GoPro and a physical iOS device
+- Unit and UI tests run fine in the iOS Simulator
+- CI runs unit tests automatically on every push and PR
 
 ## Pull Requests
 
