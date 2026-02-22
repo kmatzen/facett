@@ -460,6 +460,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var centralManager: CBCentralManager!
     private var deviceQueryTimer: Timer?
     private var deviceScanTimer: Timer?
+    private var keepAliveTimer: Timer?
     private var timeoutCheckTimer: Timer?
     private var settingsQueryCounter = 0 // Counter to reduce settings query frequency
 
@@ -653,6 +654,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         stopDeviceQueryTimer()
         stopDeviceScanTimer()
         stopStragglerRetryTimer()
+        stopKeepAliveTimer()
         connectionRetryTimers.values.forEach { $0.invalidate() }
         connectionRetryTimers.removeAll()
         connectionAttemptTimers.values.forEach { $0.invalidate() }
@@ -1904,16 +1906,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         guard let gopro = connectedGoPros[uuid] else { return }
 
         if sleep {
-            // For sleep, first release control, then send sleep command
             releaseControl(for: uuid)
 
-            // Wait a moment for control release, then send sleep command
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
                 guard let self = self else { return }
                 self.sendSleepCommand(to: gopro)
             }
         } else {
-            // For normal disconnect, release control and disconnect immediately
             releaseControl(for: uuid)
             if let cbPeripheral = gopro.peripheral.cbPeripheral {
                 centralManager.cancelPeripheralConnection(cbPeripheral)
@@ -1923,14 +1922,16 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     func powerDownGoPro(uuid: UUID) {
-
-
         guard let gopro = connectedGoPros[uuid] else { return }
 
-            sendPowerDownCommand(to: gopro)
+        sendPowerDownCommand(to: gopro)
 
-        removeDevice(from: \.connectedGoPros, uuid: uuid) // Use key path for connectedGoPros
+        removeDevice(from: \.connectedGoPros, uuid: uuid)
         log("\(gopro.peripheral.name ?? "GoPro") powered down.")
+
+        if connectedGoPros.isEmpty {
+            stopKeepAliveTimer()
+        }
     }
 
 
@@ -2072,6 +2073,36 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
 
+    // MARK: - Keep Alive
+
+    func startKeepAliveTimer() {
+        stopKeepAliveTimer()
+        DispatchQueue.main.async {
+            self.keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { [weak self] _ in
+                self?.sendKeepAliveToAll()
+            }
+        }
+    }
+
+    func stopKeepAliveTimer() {
+        DispatchQueue.main.async {
+            self.keepAliveTimer?.invalidate()
+            self.keepAliveTimer = nil
+        }
+    }
+
+    private func sendKeepAliveToAll() {
+        let command = Data(GoProCommands.KeepAlive.ping)
+        for (_, gopro) in connectedGoPros {
+            guard let characteristic = findCharacteristic(for: gopro.peripheral, uuid: Constants.UUIDs.settings) else {
+                continue
+            }
+            bleCommandQueue.async {
+                gopro.peripheral.writeValue(command, for: characteristic, type: .withResponse)
+            }
+        }
+    }
+
     func pauseScanning() {
         DispatchQueue.main.async {
             self.stopDeviceScanTimer()
@@ -2158,6 +2189,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     // MARK: - Sleep and Wake Operations
     func putCamerasToSleep() {
+        stopKeepAliveTimer()
         connectedGoPros.keys.forEach { disconnectFromGoPro(uuid: $0, sleep: true) }
     }
 
