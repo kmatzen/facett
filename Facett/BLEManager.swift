@@ -179,16 +179,22 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     // Connection retry tracking
     private var connectionRetryCount: [UUID: Int] = [:]
     private var connectionRetryTimers: [UUID: Timer] = [:]
-    private var connectionAttemptTimers: [UUID: Timer] = [:] // Timeout for individual attempts
+    private var connectionAttemptTimers: [UUID: Timer] = [:]
     private let maxRetryAttempts = 3
-    private let baseRetryDelay: TimeInterval = 1.0 // Base delay for exponential backoff
-    private let maxRetryDelay: TimeInterval = 30.0 // Maximum delay between retries
-    private let connectionTimeout: TimeInterval = 10.0 // Timeout for individual connection attempts
+    /// Empirical: base delay for exponential backoff between connection retries
+    private let baseRetryDelay: TimeInterval = 1.0
+    /// Empirical: cap on exponential backoff to keep retries within a reasonable window
+    private let maxRetryDelay: TimeInterval = 30.0
+    /// Empirical: how long to wait for CoreBluetooth `didConnect` before declaring timeout
+    private let connectionTimeout: TimeInterval = 10.0
 
     // Command timeout tracking
     private var pendingCommands: [UUID: [PendingCommand]] = [:]
-    private let defaultCommandTimeout: TimeInterval = 5.0 // Default timeout for commands
-    private let commandRetryAttempts = 2 // Number of retry attempts for failed commands
+    /// Empirical: default time to wait for a BLE command response before retrying
+    private let defaultCommandTimeout: TimeInterval = 5.0
+    private let commandRetryAttempts = 2
+    /// Empirical: pause before resending a timed-out command to avoid flooding the BLE stack
+    private let commandRetryDelay: TimeInterval = 1.0
 
     // MARK: - Command Timeout Infrastructure
 
@@ -266,7 +272,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
             pendingCommands[uuid]?.append(retryCommand)
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + commandRetryDelay) { [weak self] in
                 self?.sendCommand(command, to: uuid, commandName: commandName, requiresControl: pendingCommand.requiresControl)
             }
         } else {
@@ -323,25 +329,38 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Invalidate any existing timer before creating a new one
         commandQueueTimers[uuid]?.invalidate()
 
-        if Thread.isMainThread {
+        let createTimer = { [weak self] in
+            guard let self = self else { return }
+            self.commandQueueTimers[uuid]?.invalidate()
+
+            guard let queue = self.commandQueues[uuid], !queue.isEmpty else {
+                self.commandQueueTimers[uuid] = nil
+                return
+            }
+
             let timer = Timer.scheduledTimer(withTimeInterval: self.commandQueueInterval, repeats: true) { [weak self] _ in
                 self?.processCommandQueue(for: uuid)
             }
             self.commandQueueTimers[uuid] = timer
+        }
+
+        if Thread.isMainThread {
+            createTimer()
         } else {
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.commandQueueTimers[uuid]?.invalidate()
-                let timer = Timer.scheduledTimer(withTimeInterval: self.commandQueueInterval, repeats: true) { [weak self] _ in
-                    self?.processCommandQueue(for: uuid)
-                }
-                self.commandQueueTimers[uuid] = timer
-            }
+            DispatchQueue.main.async(execute: createTimer)
         }
     }
 
     private func processCommandQueue(for uuid: UUID) {
-        guard let queue = commandQueues[uuid], !queue.isEmpty else {
+        guard let queue = commandQueues[uuid] else {
+            ErrorHandler.debug("No command queue for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), stopping timer")
+            commandQueueTimers[uuid]?.invalidate()
+            commandQueueTimers[uuid] = nil
+            return
+        }
+
+        guard !queue.isEmpty else {
+            ErrorHandler.debug("Queue empty for \(CameraIdentityManager.shared.getDisplayName(for: uuid)), stopping timer")
             commandQueueTimers[uuid]?.invalidate()
             commandQueueTimers[uuid] = nil
             return
@@ -411,7 +430,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             gopro.peripheral.writeValue(Data(command), for: characteristic, type: .withResponse)
         }
 
-
         ErrorHandler.debug("Sent \(commandName) command to \(gopro.peripheral.name ?? "a device")")
     }
 
@@ -443,37 +461,60 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private var stragglerRetryTimer: Timer?
     private var stragglerRetryCount: [UUID: Int] = [:]
     private let maxStragglerRetries = 5
-    private let stragglerRetryInterval: TimeInterval = 15.0 // 15 seconds between straggler checks
-    private var targetConnectedCameras: Set<UUID> = [] // Cameras that should be connected
+    /// Empirical: interval between checks for cameras that should be connected but aren't
+    private let stragglerRetryInterval: TimeInterval = 15.0
+    private var targetConnectedCameras: Set<UUID> = []
 
     // Command response tracking for sleep/power down commands
     private var pendingSleepCommands: Set<UUID> = []
     private var pendingPowerDownCommands: Set<UUID> = []
+    private var sleepTimeoutWorkItems: [UUID: DispatchWorkItem] = [:]
+    private var powerDownTimeoutWorkItems: [UUID: DispatchWorkItem] = [:]
 
     // BLE Parser for packet processing
     let bleParser = GoProBLEParser()
     @Published var discoveredGoPros: [UUID: GoPro] = [:]
     @Published var statusMessage: String = "Scanning for devices..."
 
-
-
     private var centralManager: CBCentralManager!
     private var deviceQueryTimer: Timer?
     private var deviceScanTimer: Timer?
     private var keepAliveTimer: Timer?
     private var timeoutCheckTimer: Timer?
-    private var settingsQueryCounter = 0 // Counter to reduce settings query frequency
+    private var settingsQueryCounter = 0
 
     private let bleCommandQueue = DispatchQueue(label: "com.kmatzen.facett.bleCommandQueue")
 
     // Command queue management
     private var commandQueues: [UUID: [QueuedCommand]] = [:]
     private var commandQueueTimers: [UUID: Timer] = [:]
-    private let maxCommandsPerSecond = 5.0 // Rate limit: max 5 commands per second per camera
-    private let maxQueueSize = 20 // Maximum commands queued per camera
-    private let commandQueueInterval: TimeInterval = 0.2 // Process queue every 200ms
-    private var lastRateLimitLogTime: [UUID: Date] = [:] // Cooldown for rate limit logging
+    private let maxCommandsPerSecond = 5.0
+    private let maxQueueSize = 20
+    /// Protocol: GoPro BLE spec recommends ≤5 cmd/s; 200ms keeps us within budget
+    private let commandQueueInterval: TimeInterval = 0.2
+    private var lastRateLimitLogTime: [UUID: Date] = [:]
 
+    // MARK: - Timing Constants
+
+    /// Empirical: delay after receiving a settings response before re-querying all settings,
+    /// gives the camera time to process the previous write
+    private let settingsQueryDelay: TimeInterval = 0.5
+    /// Empirical: pause after disconnecting due to an auth error before reconnecting,
+    /// allows the BLE stack to fully tear down
+    private let authReconnectDelay: TimeInterval = 2.0
+    /// Empirical: gap between releasing camera control and sending the sleep command,
+    /// ensures the control-release ACK completes first
+    private let controlReleaseDelay: TimeInterval = 0.5
+    /// Empirical: time to wait for a sleep/power-down command ACK before force-disconnecting
+    private let shutdownCommandTimeout: TimeInterval = 3.0
+    /// Empirical: interval between periodic device status queries
+    private let deviceQueryInterval: TimeInterval = 5.0
+    /// Empirical: how long to scan before pausing to avoid continuous radio use
+    private let deviceScanInterval: TimeInterval = 3.0
+    /// Empirical: timeout for incomplete multipart BLE response reassembly
+    private let multipartResponseTimeout: TimeInterval = 3.0
+    /// Empirical: delay between WiFi AP enable command and credential query
+    private let wifiCredentialFetchDelay: TimeInterval = 2.0
 
     // Error recovery tracking
     private var serviceDiscoveryRetries: [UUID: Int] = [:]
@@ -482,7 +523,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     private let maxServiceDiscoveryRetries = 3
     private let maxCharacteristicDiscoveryRetries = 3
     private let maxCommandWriteRetries = 3
-    private let errorRecoveryDelay: TimeInterval = 1.0 // Base delay for error recovery
+    /// Empirical: base delay for error recovery retries (multiplied by attempt number)
+    private let errorRecoveryDelay: TimeInterval = 1.0
 
     // Connection health monitoring
     private var connectionHealthScores: [UUID: ConnectionHealth] = [:]
@@ -805,8 +847,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         return modeManager.getCurrentModeDescription(for: uuid)
     }
 
-
-
     func setDateTime(for uuid: UUID) {
         guard connectedGoPros[uuid] != nil else { return }
 
@@ -890,7 +930,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     ) {
         connectionHandler.handleDisconnection(peripheral, error: error)
     }
-
 
     func centralManager(
         _ central: CBCentralManager,
@@ -1150,6 +1189,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 if pendingSleepCommands.contains(uuid) {
                     log("Sleep command response received for \(peripheral.name ?? "device"), disconnecting")
                     pendingSleepCommands.remove(uuid)
+                    sleepTimeoutWorkItems[uuid]?.cancel()
+                    sleepTimeoutWorkItems.removeValue(forKey: uuid)
                     centralManager.cancelPeripheralConnection(peripheral)
                     return
                 }
@@ -1157,6 +1198,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                 if pendingPowerDownCommands.contains(uuid) {
                     log("Power down command response received for \(peripheral.name ?? "device"), disconnecting")
                     pendingPowerDownCommands.remove(uuid)
+                    powerDownTimeoutWorkItems[uuid]?.cancel()
+                    powerDownTimeoutWorkItems.removeValue(forKey: uuid)
                     centralManager.cancelPeripheralConnection(peripheral)
                     return
                 }
@@ -1257,7 +1300,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Parse the response to update camera settings with actual values from the camera
         responseHandler.handleQueryResponse(data, for: peripheral)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + settingsQueryDelay) { [weak self] in
             guard let self = self, let gopro = self.connectedGoPros[peripheral.identifier] else { return }
             self.queryAllSettings(from: gopro.peripheral)
         }
@@ -1266,9 +1309,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     // MARK: - WiFi Characteristic Handlers (Moved to BLEWiFiManager)
 
     func verifySettings(_ response: Data, for peripheral: CBPeripheral) {
-
-
-        // Convert the response to a byte array for loging
+        // Convert the response to a byte array for logging
         let byteArray = response.map { String(format: "0x%02X", $0) }.joined(separator: " ")
 
         if response[2] == 0 {
@@ -1392,7 +1433,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Clear any pending commands for this device
         pendingCommands[uuid]?.removeAll()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + authReconnectDelay) { [weak self] in
             self?.log("Attempting to reconnect after authentication error...")
             self?.centralManager.connect(peripheral, options: nil)
         }
@@ -1673,11 +1714,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         return connectionStabilityMetrics[uuid]
     }
 
-
     // MARK: - Device Management
     private func addDevice(to collection: ReferenceWritableKeyPath<BLEManager, [UUID: GoPro]>, gopro: GoPro) {
-
-
         self[keyPath: collection][gopro.peripheral.identifier] = gopro
 
         // Note: Camera name will be stored when we receive the apSSID (serial number)
@@ -1685,8 +1723,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     private func removeDevice(from collection: ReferenceWritableKeyPath<BLEManager, [UUID: GoPro]>, uuid: UUID) {
-
-
         self[keyPath: collection].removeValue(forKey: uuid)
     }
 
@@ -1695,8 +1731,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         uuid: UUID,
         gopro: GoPro?
     ) {
-
-
         if let gopro = gopro {
             self[keyPath: collection][uuid] = gopro
         } else {
@@ -1803,6 +1837,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Clean up pending command tracking
         pendingSleepCommands.removeAll()
         pendingPowerDownCommands.removeAll()
+        sleepTimeoutWorkItems.values.forEach { $0.cancel() }
+        sleepTimeoutWorkItems.removeAll()
+        powerDownTimeoutWorkItems.values.forEach { $0.cancel() }
+        powerDownTimeoutWorkItems.removeAll()
     }
 
     func connectToGoPro(uuid: UUID) {
@@ -1909,7 +1947,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         if sleep {
             releaseControl(for: uuid)
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + controlReleaseDelay) { [weak self] in
                 guard let self = self else { return }
                 self.sendSleepCommand(to: gopro)
             }
@@ -1935,7 +1973,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
 
-
     private func sendCommand(_ command: [UInt8], to gopro: GoPro, actionDescription: String, priority: CommandPriority = .critical) {
         // Use the queue system for consistency
         sendCommand(command, to: gopro.peripheral.identifier, commandName: actionDescription, priority: priority)
@@ -1959,17 +1996,19 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         sendCommand(sleepCommand, to: gopro, actionDescription: "Sending to sleep")
 
-        // Set a timeout to disconnect if no response is received
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+        let workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             if self.pendingSleepCommands.contains(uuid) {
                 self.log("Sleep command timeout for \(gopro.peripheral.name ?? "device"), disconnecting anyway")
                 self.pendingSleepCommands.remove(uuid)
+                self.sleepTimeoutWorkItems.removeValue(forKey: uuid)
                 if let cbPeripheral = gopro.peripheral.cbPeripheral {
                     self.centralManager.cancelPeripheralConnection(cbPeripheral)
                 }
             }
         }
+        sleepTimeoutWorkItems[uuid] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + shutdownCommandTimeout, execute: workItem)
     }
 
     private func sendPowerDownCommand(to gopro: GoPro) {
@@ -1981,17 +2020,19 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         sendCommand(powerDownCommand, to: gopro, actionDescription: "Powering down")
 
-        // Set a timeout to disconnect if no response is received
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) { [weak self] in
+        let workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             if self.pendingPowerDownCommands.contains(uuid) {
                 self.log("Power down command timeout for \(gopro.peripheral.name ?? "device"), disconnecting anyway")
                 self.pendingPowerDownCommands.remove(uuid)
+                self.powerDownTimeoutWorkItems.removeValue(forKey: uuid)
                 if let cbPeripheral = gopro.peripheral.cbPeripheral {
                     self.centralManager.cancelPeripheralConnection(cbPeripheral)
                 }
             }
         }
+        powerDownTimeoutWorkItems[uuid] = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + shutdownCommandTimeout, execute: workItem)
     }
 
     // MARK: - Device State Helpers
@@ -2008,13 +2049,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let bleQueue = DispatchQueue(label: "com.kmatzen.facett.ble.timer", qos: .utility)
         bleQueue.async {
             DispatchQueue.main.async {
-                self.deviceQueryTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: false) { [weak self] _ in
+                self.deviceQueryTimer = Timer.scheduledTimer(withTimeInterval: self.deviceQueryInterval, repeats: false) { [weak self] _ in
                     guard let self = self else { return }
 
                     // Run heavy BLE operations on background queue
                     bleQueue.async {
                         // Check for timeouts in multipart responses
-                        let timeoutResponses = self.bleParser.checkTimeouts(timeoutInterval: 3.0)
+                        let timeoutResponses = self.bleParser.checkTimeouts(timeoutInterval: self.multipartResponseTimeout)
                         if !timeoutResponses.isEmpty {
                             ErrorHandler.debug("Processing \(timeoutResponses.count) responses from timed out buffers")
                             DispatchQueue.main.async {
@@ -2041,7 +2082,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // CRITICAL FIX: Run scan timer operations on background queue to avoid blocking main thread
         let bleQueue = DispatchQueue(label: "com.kmatzen.facett.ble.scan", qos: .utility)
         DispatchQueue.main.async {
-            self.deviceScanTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { [weak self] _ in
+            self.deviceScanTimer = Timer.scheduledTimer(withTimeInterval: self.deviceScanInterval, repeats: false) { [weak self] _ in
                 guard let self = self else { return }
 
                 // Run scanning operations on background queue
@@ -2186,8 +2227,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         return peripheral.services?.flatMap { $0.characteristics ?? [] }.first { $0.uuid == uuid }
     }
 
-
-
     // MARK: - Sleep and Wake Operations
     func putCamerasToSleep() {
         stopKeepAliveTimer()
@@ -2204,6 +2243,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         connectStaggered(Array(discoveredGoPros.keys))
     }
 
+    /// Empirical: delay between successive connection attempts to avoid overwhelming the BLE stack
     private let connectionStaggerDelay: TimeInterval = 0.5
 
     /// Connect to cameras with a staggered delay to avoid overwhelming the BLE stack
@@ -2411,8 +2451,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         )
     }
 
-
-
     func sendSettingsToCamerasInGroup(_ cameraSerials: Set<String>, configManager: ConfigManager, cameraGroupManager: CameraGroupManager) {
         // Get target settings using centralized logic
         let targetSettings = configManager.getTargetSettings(for: cameraGroupManager.activeGroup)
@@ -2515,8 +2553,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     func configureAllDevices() {
-
-
         connectedGoPros.forEach { _, gopro in
             sendSettings(to: gopro.peripheral)
         }

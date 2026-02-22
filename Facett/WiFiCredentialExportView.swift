@@ -127,8 +127,8 @@ struct WiFiCredentialExportView: View {
                     // Enable WiFi AP button
                     Button(action: {
                         bleManager.enableAPAllDevices()
-                        // Wait a moment then get credentials
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        let wifiAPEnableDelay: TimeInterval = 2.0 // Empirical: wait for AP to activate
+                        DispatchQueue.main.asyncAfter(deadline: .now() + wifiAPEnableDelay) {
                             bleManager.getWiFiCredentialsForAllDevices()
                         }
                     }) {
