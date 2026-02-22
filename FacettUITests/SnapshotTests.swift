@@ -1,4 +1,5 @@
 import XCTest
+import SnapshotTesting
 
 @MainActor
 final class SnapshotTests: XCTestCase {
@@ -20,13 +21,13 @@ final class SnapshotTests: XCTestCase {
     }
 
     func testScreenshots() {
-        snapshot("01-Dashboard")
+        assertScreenshot("01-Dashboard")
 
         let configurationsText = app.staticTexts["Configurations"]
         if configurationsText.exists {
             configurationsText.tap()
             sleep(1)
-            snapshot("02-Configurations")
+            assertScreenshot("02-Configurations")
             dismissSheet()
         }
 
@@ -34,7 +35,7 @@ final class SnapshotTests: XCTestCase {
         if cameraGroupsText.exists {
             cameraGroupsText.tap()
             sleep(1)
-            snapshot("03-CameraGroups")
+            assertScreenshot("03-CameraGroups")
             dismissSheet()
         }
 
@@ -42,9 +43,25 @@ final class SnapshotTests: XCTestCase {
         if bugReportsText.exists {
             bugReportsText.tap()
             sleep(1)
-            snapshot("04-BugReport")
+            assertScreenshot("04-BugReport")
             dismissSheet()
         }
+    }
+
+    // MARK: - Helpers
+
+    /// Captures a fastlane screenshot and asserts visual regression via swift-snapshot-testing.
+    private func assertScreenshot(_ name: String, precision: Float = 0.995, perceptualPrecision: Float = 0.98, file: StaticString = #file, testName: String = #function, line: UInt = #line) {
+        snapshot(name)
+        let image = XCUIScreen.main.screenshot().image
+        assertSnapshot(
+            of: image,
+            as: .image(precision: precision, perceptualPrecision: perceptualPrecision),
+            named: name,
+            file: file,
+            testName: testName,
+            line: line
+        )
     }
 
     private func dismissSheet() {

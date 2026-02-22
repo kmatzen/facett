@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A1B2C3D4E5F6000000000003 /* SnapshotTesting in Frameworks */ = {isa = PBXBuildFile; productRef = A1B2C3D4E5F6000000000002 /* SnapshotTesting */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		D8C4C2022D345CE90093AB00 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -79,6 +83,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1B2C3D4E5F6000000000003 /* SnapshotTesting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -171,6 +176,7 @@
 			);
 			name = FacettUITests;
 			packageProductDependencies = (
+				A1B2C3D4E5F6000000000002 /* SnapshotTesting */,
 			);
 			productName = FacettUITests;
 			productReference = D8C4C20B2D345CE90093AB00 /* FacettUITests.xctest */;
@@ -208,6 +214,9 @@
 			);
 			mainGroup = D8C4C1E82D345CE50093AB00;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A1B2C3D4E5F6000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D8C4C1F22D345CE50093AB00 /* Products */;
 			projectDirPath = "";
@@ -591,6 +600,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A1B2C3D4E5F6000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/pointfreeco/swift-snapshot-testing.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.15.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1B2C3D4E5F6000000000002 /* SnapshotTesting */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1B2C3D4E5F6000000000001 /* XCRemoteSwiftPackageReference "swift-snapshot-testing" */;
+			productName = SnapshotTesting;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = D8C4C1E92D345CE50093AB00 /* Project object */;
 }
