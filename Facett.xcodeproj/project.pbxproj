@@ -6,6 +6,9 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		D8C4C2022D345CE90093AB00 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -208,6 +211,8 @@
 			);
 			mainGroup = D8C4C1E82D345CE50093AB00;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D8C4C1F22D345CE50093AB00 /* Products */;
 			projectDirPath = "";
@@ -591,6 +596,12 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = D8C4C1E92D345CE50093AB00 /* Project object */;
 }

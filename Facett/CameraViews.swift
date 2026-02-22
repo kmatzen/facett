@@ -350,7 +350,6 @@ struct ActiveGroupSummaryView: View {
     @ObservedObject var bleManager: BLEManager
     @ObservedObject var configManager: ConfigManager
     @State private var selectedCamera: GoPro?
-    @State private var showingCameraDetails = false
 
     // Simple computed properties - no caching needed
     private var status: GroupStatus {
@@ -417,7 +416,6 @@ struct ActiveGroupSummaryView: View {
                             )
                             .onTapGesture {
                                 selectedCamera = connectedCamera
-                                showingCameraDetails = true
                             }
                         } else {
                             // Camera is either discovered but not connected, or not found at all
@@ -433,14 +431,12 @@ struct ActiveGroupSummaryView: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(12)
-        .sheet(isPresented: $showingCameraDetails) {
-            if let selectedCamera = selectedCamera {
-                CameraDetailsSheet(
-                    camera: selectedCamera,
-                    bleManager: bleManager,
-                    cameraGroupManager: cameraGroupManager
-                )
-            }
+        .sheet(item: $selectedCamera) { camera in
+            CameraDetailsSheet(
+                camera: camera,
+                bleManager: bleManager,
+                cameraGroupManager: cameraGroupManager
+            )
         }
     }
 }
