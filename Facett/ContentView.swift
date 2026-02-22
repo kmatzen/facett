@@ -39,16 +39,8 @@ struct ContentView: View {
     }
 
     private func checkForModeMismatches() -> [GoPro] {
-        let camerasToCheck: [GoPro]
-
-        if let activeGroup = cameraGroupManager.activeGroup {
-            camerasToCheck = activeGroup.cameraSerials.compactMap { serial in
-                guard let uuid = CameraSerialResolver.shared.getUUID(forSerial: serial) else { return nil }
-                return bleManager.connectedGoPros[uuid]
-            }
-        } else {
-            camerasToCheck = Array(bleManager.connectedGoPros.values)
-        }
+        let group = cameraGroupManager.effectiveGroup(bleManager: bleManager)
+        let camerasToCheck = group.cameraIds.compactMap { bleManager.connectedGoPros[$0] }
 
         // Debug logging
         ErrorHandler.info(
@@ -118,12 +110,8 @@ struct ContentView: View {
                 "No Mode Mismatches - Starting Recording",
                 context: ["action": "start_recording"]
             )
-            // No mode mismatches, proceed with recording
-            if let activeGroup = cameraGroupManager.activeGroup {
-                bleManager.startRecordingForCamerasInSet(activeGroup.cameraSerials)
-            } else {
-                bleManager.startRecordingAllDevices()
-            }
+            let group = cameraGroupManager.effectiveGroup(bleManager: bleManager)
+            bleManager.startRecordingForCamerasInSet(group.cameraSerials)
         }
     }
 
@@ -230,41 +218,28 @@ struct ContentView: View {
 
                     speechManager.onStartCommand = {
                         ErrorHandler.info("Voice command 'start' detected")
-                        if let activeGroup = cameraGroupManager.activeGroup {
-                            bleManager.startRecordingForCamerasInSet(activeGroup.cameraSerials)
-                        } else {
-                            bleManager.startRecordingAllDevices()
-                        }
+                        let group = cameraGroupManager.effectiveGroup(bleManager: bleManager)
+                        bleManager.startRecordingForCamerasInSet(group.cameraSerials)
                         recordAll = true
                     }
 
                     speechManager.onStopCommand = {
                         ErrorHandler.info("Voice command 'stop' detected")
-                        if let activeGroup = cameraGroupManager.activeGroup {
-                            bleManager.stopRecordingForCamerasInSet(activeGroup.cameraSerials)
-                        } else {
-                            bleManager.stopRecordingAllDevices()
-                        }
+                        let group = cameraGroupManager.effectiveGroup(bleManager: bleManager)
+                        bleManager.stopRecordingForCamerasInSet(group.cameraSerials)
                         recordAll = false
                     }
 
                     enterKeyHandler.enterKeyAction = {
                         ErrorHandler.info("Enter key detected!")
+                        let group = cameraGroupManager.effectiveGroup(bleManager: bleManager)
                         if recordAll {
                             ErrorHandler.info("Stopping recording on all devices")
-                            if let activeGroup = cameraGroupManager.activeGroup {
-                                bleManager.stopRecordingForCamerasInSet(activeGroup.cameraSerials)
-                            } else {
-                                bleManager.stopRecordingAllDevices()
-                            }
+                            bleManager.stopRecordingForCamerasInSet(group.cameraSerials)
                             recordAll = false
                         } else {
                             ErrorHandler.info("Starting recording on all devices")
-                            if let activeGroup = cameraGroupManager.activeGroup {
-                                bleManager.startRecordingForCamerasInSet(activeGroup.cameraSerials)
-                            } else {
-                                bleManager.startRecordingAllDevices()
-                            }
+                            bleManager.startRecordingForCamerasInSet(group.cameraSerials)
                             recordAll = true
                         }
                     }
@@ -281,15 +256,12 @@ struct ContentView: View {
 
     private var mainContentSection: some View {
         VStack(spacing: 20) {
-            // Active Group Summary (only show when there's an active group)
-            if let activeGroup = cameraGroupManager.activeGroup {
-                ActiveGroupSummaryView(
-                    set: activeGroup,
-                    cameraGroupManager: cameraGroupManager,
-                    bleManager: bleManager,
-                    configManager: configManager
-                )
-            }
+            ActiveGroupSummaryView(
+                set: cameraGroupManager.effectiveGroup(bleManager: bleManager),
+                cameraGroupManager: cameraGroupManager,
+                bleManager: bleManager,
+                configManager: configManager
+            )
 
             // Management Buttons - Modern Design
             ManagementButtonsView(
@@ -313,65 +285,6 @@ struct ContentView: View {
 
     private var deviceListSection: some View {
         VStack(spacing: 16) {
-            // Device Sections
-            if cameraGroupManager.cameraGroups.isEmpty {
-                // No camera groups exist - show helpful message
-                VStack(spacing: 8) {
-                    Image(systemName: "camera.on.rectangle")
-                        .font(.system(size: 32))
-                        .foregroundColor(.gray)
-
-                    Text("No Camera Groups")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-
-                    Text("Create a camera group to organize your GoPro cameras")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-
-                    Button("Create Camera Group") {
-                        showingCameraGroupManagement = true
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
-            } else if cameraGroupManager.activeGroup == nil {
-                // Auto-select the first camera group if none is active
-                VStack(spacing: 8) {
-                    Text("No Active Camera Group")
-                        .font(.headline)
-                        .foregroundColor(.orange)
-
-                    Button("Select \(cameraGroupManager.cameraGroups.first?.name ?? "Camera Group")") {
-                        if let firstGroup = cameraGroupManager.cameraGroups.first {
-                            cameraGroupManager.setActiveGroup(firstGroup)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .padding()
-                .background(Color(.systemGray6))
-                .cornerRadius(8)
-                .onAppear {
-                    // Auto-select immediately if no active group
-                    if cameraGroupManager.activeGroupId == nil {
-                        if let firstGroup = cameraGroupManager.cameraGroups.first {
-                            // Use async to avoid blocking the UI
-                            DispatchQueue.main.async {
-                                cameraGroupManager.setActiveGroup(firstGroup)
-                            }
-                        }
-                    }
-                }
-            }
-            // If there's an active set, no additional device section is needed
-            // The active set information is already shown in the unified header
-
-            // Removed discovered/connected devices sections to reduce clutter
-            // Device details are now shown in the main content area via ActiveGroupSummaryView
         }
         .sheet(isPresented: $showingCameraGroupManagement) {
             CameraGroupManagementView(
