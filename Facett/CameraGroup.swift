@@ -212,6 +212,14 @@ class CameraGroupManager: ObservableObject {
         cameraGroups.first { $0.id == activeGroupId }
     }
 
+    func effectiveGroup(bleManager: BLEManager) -> CameraGroup {
+        if let active = activeGroup {
+            return active
+        }
+        let serials = Set(bleManager.connectedGoPros.values.compactMap(\.status.apSSID))
+        return CameraGroup(name: "All Cameras", cameraSerials: serials)
+    }
+
     // MARK: - Camera Management
     func addCameraToGroup(_ cameraSerial: String, group: CameraGroup) {
         var updatedGroup = group

@@ -12,114 +12,66 @@ struct RecordingControlsView: View {
     @State private var syncRotation: Double = 0
     @State private var previouslyAllOnlineAndInSync = false
 
+    private var effectiveGroup: CameraGroup {
+        cameraGroupManager.effectiveGroup(bleManager: bleManager)
+    }
+
+    private var effectiveCameras: [GoPro] {
+        effectiveGroup.cameraIds.compactMap { bleManager.connectedGoPros[$0] }
+    }
+
     private var isAnyCameraRecording: Bool {
-        let cameras: [GoPro]
-        if let activeGroup = cameraGroupManager.activeGroup {
-            cameras = activeGroup.cameraIds.compactMap { bleManager.connectedGoPros[$0] }
-        } else {
-            cameras = Array(bleManager.connectedGoPros.values)
-        }
-        return cameras.contains { $0.status.isEncoding == true }
+        effectiveCameras.contains { $0.status.isEncoding == true }
     }
 
     private var connectedCameraCount: Int {
-        if let activeGroup = cameraGroupManager.activeGroup {
-            return activeGroup.cameraIds.filter { bleManager.connectedGoPros[$0] != nil }.count
-        } else {
-            return bleManager.connectedGoPros.count
-        }
+        effectiveGroup.cameraIds.filter { bleManager.connectedGoPros[$0] != nil }.count
     }
 
     private var totalCamerasInGroup: Int {
-        if let activeGroup = cameraGroupManager.activeGroup {
-            return activeGroup.cameraIds.count
-        } else {
-            return bleManager.discoveredGoPros.count
-        }
+        effectiveGroup.cameraIds.count
     }
 
     private var allCamerasOnlineAndInSync: Bool {
-        guard let activeGroup = cameraGroupManager.activeGroup else {
-            // If no active group, check all connected cameras are in sync
-            let targetSettings = configManager.getTargetSettings(for: nil)
-            return bleManager.connectedGoPros.values.allSatisfy { gopro in
-                // Camera must be ready (not just connected)
-                guard gopro.status.isReady == true else {
-                    return false
-                }
+        let group = effectiveGroup
+        let targetSettings = configManager.getTargetSettings(for: cameraGroupManager.activeGroup)
 
-                // If camera is recording, be more lenient with settings checks
-                if gopro.status.isEncoding == true {
-                    return true // Consider recording cameras as "in sync" to avoid false positives
-                }
-                return !ConfigValidation.hasSettingsMismatch(gopro: gopro, targetSettings: targetSettings)
-            }
-        }
-
-        // Check that all cameras in the group are online and in sync
-        let targetSettings = configManager.getTargetSettings(for: activeGroup)
-
-        return activeGroup.cameraIds.allSatisfy { cameraId in
+        return group.cameraIds.allSatisfy { cameraId in
             guard let gopro = bleManager.connectedGoPros[cameraId] else {
-                return false // Camera is offline
+                return false
             }
-
-            // Camera must be ready (not just connected)
             guard gopro.status.isReady == true else {
                 return false
             }
-
-            // If camera is recording, be more lenient with settings checks
             if gopro.status.isEncoding == true {
-                return true // Consider recording cameras as "in sync" to avoid false positives
+                return true
             }
-
-            // Check if camera is in sync
             return !ConfigValidation.hasSettingsMismatch(gopro: gopro, targetSettings: targetSettings)
         }
     }
 
     private var recordingCameraCount: Int {
-        let cameras: [GoPro]
-        if let activeGroup = cameraGroupManager.activeGroup {
-            cameras = activeGroup.cameraIds.compactMap { bleManager.connectedGoPros[$0] }
-        } else {
-            cameras = Array(bleManager.connectedGoPros.values)
-        }
-        return cameras.filter { $0.status.isEncoding == true }.count
+        effectiveCameras.filter { $0.status.isEncoding == true }.count
     }
 
     private var groupName: String {
-        if let activeGroup = cameraGroupManager.activeGroup {
-            return activeGroup.name
-        } else {
-            return "All Cameras"
-        }
+        effectiveGroup.name
     }
 
     private var discoveredCameraCount: Int {
-        if let activeGroup = cameraGroupManager.activeGroup {
-            return activeGroup.cameraIds.filter { bleManager.discoveredGoPros[$0] != nil }.count
-        } else {
-            return bleManager.discoveredGoPros.count
-        }
+        effectiveGroup.cameraIds.filter { bleManager.discoveredGoPros[$0] != nil }.count
     }
 
-    private var groupStatus: GroupStatus? {
-        guard let activeGroup = cameraGroupManager.activeGroup else { return nil }
-        return cameraGroupManager.getGroupStatus(for: activeGroup, bleManager: bleManager)
+    private var groupStatus: GroupStatus {
+        cameraGroupManager.getGroupStatus(for: effectiveGroup, bleManager: bleManager)
     }
 
-    private func hasSettingsMismatchesInGroup(_ cameraGroup: CameraGroup) -> Bool {
-        // Check if any connected camera in the group has mismatched settings
-        for cameraId in cameraGroup.cameraIds {
+    private var hasSettingsMismatches: Bool {
+        let group = effectiveGroup
+        let targetSettings = configManager.getTargetSettings(for: cameraGroupManager.activeGroup)
+        for cameraId in group.cameraIds {
             if let gopro = bleManager.connectedGoPros[cameraId] {
-                // Skip settings mismatch checks for recording cameras to avoid false positives
-                if gopro.status.isEncoding == true {
-                    continue
-                }
-
-                let targetSettings = configManager.getTargetSettings(for: cameraGroup)
+                if gopro.status.isEncoding == true { continue }
                 if ConfigValidation.hasSettingsMismatch(gopro: gopro, targetSettings: targetSettings) {
                     return true
                 }
@@ -160,7 +112,7 @@ struct RecordingControlsView: View {
                     isAnyCameraRecording: isAnyCameraRecording,
                     recordingPulse: $recordingPulse,
                     connectedCameraCount: connectedCameraCount,
-                    cameraGroupManager: cameraGroupManager,
+                    totalCameraCount: totalCamerasInGroup,
                     groupStatus: groupStatus
                 )
 
@@ -168,11 +120,9 @@ struct RecordingControlsView: View {
 
                 // Primary Control Buttons
                 HStack(spacing: 12) {
-                    // Settings Sync Button (only show if there are mismatches)
-                    if let activeGroup = cameraGroupManager.activeGroup,
-                       hasSettingsMismatchesInGroup(activeGroup) {
+                    if hasSettingsMismatches {
                         Button(action: {
-                            bleManager.sendSettingsToCamerasInGroup(activeGroup.cameraSerials, configManager: configManager, cameraGroupManager: cameraGroupManager)
+                            bleManager.sendSettingsToCamerasInGroup(effectiveGroup.cameraSerials, configManager: configManager, cameraGroupManager: cameraGroupManager)
                         }) {
                             Image(systemName: "arrow.triangle.2.circlepath")
                                 .font(.system(size: 16, weight: .medium))
@@ -219,17 +169,9 @@ struct RecordingControlsView: View {
                     // Main Recording Button
                     Button(action: {
                         if isAnyCameraRecording {
-                            // Stop recording
-                            if let activeGroup = cameraGroupManager.activeGroup {
-                                bleManager.stopRecordingForCamerasInSet(activeGroup.cameraSerials)
-                            } else {
-                                bleManager.stopRecordingAllDevices()
-                            }
-                        } else {
-                            // Start recording - only if all cameras are online and in sync
-                            if allCamerasOnlineAndInSync {
-                                handleRecordingAction()
-                            }
+                            bleManager.stopRecordingForCamerasInSet(effectiveGroup.cameraSerials)
+                        } else if allCamerasOnlineAndInSync {
+                            handleRecordingAction()
                         }
                     }) {
                         ZStack {
@@ -263,17 +205,16 @@ struct RecordingControlsView: View {
             HStack(spacing: 8) {
                 // Connect All Button
                 Button(action: {
-                    if let activeGroup = cameraGroupManager.activeGroup {
-                        let cameraIds = Set(activeGroup.cameraIds)
-                        bleManager.setTargetCameras(cameraIds)
-
-                        for cameraId in activeGroup.cameraIds {
+                    let group = effectiveGroup
+                    let cameraIds = Set(group.cameraIds)
+                    bleManager.setTargetCameras(cameraIds)
+                    if cameraGroupManager.activeGroup != nil {
+                        for cameraId in cameraIds {
                             if bleManager.discoveredGoPros[cameraId] != nil {
                                 bleManager.connectToGoPro(uuid: cameraId)
                             }
                         }
                     } else {
-                        // Connect all discovered cameras
                         bleManager.connectCameras()
                     }
                 }) {
@@ -295,18 +236,16 @@ struct RecordingControlsView: View {
 
                 // Disconnect All Button
                 Button(action: {
-                    if let activeGroup = cameraGroupManager.activeGroup {
-                        for cameraId in activeGroup.cameraIds {
+                    if cameraGroupManager.activeGroup != nil {
+                        for cameraId in effectiveGroup.cameraIds {
                             if bleManager.connectedGoPros[cameraId] != nil {
                                 bleManager.disconnectFromGoPro(uuid: cameraId)
                             }
                         }
-                        bleManager.clearTargetCameras()
                     } else {
-                        // Disconnect all cameras
                         bleManager.disconnectCameras()
-                        bleManager.clearTargetCameras()
                     }
+                    bleManager.clearTargetCameras()
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: "wifi.slash")
@@ -326,14 +265,13 @@ struct RecordingControlsView: View {
 
                 // Sleep All Button
                 Button(action: {
-                    if let activeGroup = cameraGroupManager.activeGroup {
-                        for cameraId in activeGroup.cameraIds {
+                    if cameraGroupManager.activeGroup != nil {
+                        for cameraId in effectiveGroup.cameraIds {
                             if bleManager.connectedGoPros[cameraId] != nil {
                                 bleManager.disconnectFromGoPro(uuid: cameraId, sleep: true)
                             }
                         }
                     } else {
-                        // Sleep all cameras
                         bleManager.putCamerasToSleep()
                     }
                 }) {
@@ -368,17 +306,10 @@ struct RecordingControlsView: View {
                 .stroke(isAnyCameraRecording ? Color.red.opacity(0.3) : Color.clear, lineWidth: 2)
         )
         .onChange(of: allCamerasOnlineAndInSync) { newValue in
-            // Auto-stop recording if cameras go offline or out of sync while recording
             if isAnyCameraRecording && !newValue {
                 ErrorHandler.info("🛑 Auto-stopping recording: cameras went offline or out of sync")
-
-                if let activeGroup = cameraGroupManager.activeGroup {
-                    bleManager.stopRecordingForCamerasInSet(activeGroup.cameraSerials)
-                } else {
-                    bleManager.stopRecordingAllDevices()
-                }
+                bleManager.stopRecordingForCamerasInSet(effectiveGroup.cameraSerials)
             }
-
             previouslyAllOnlineAndInSync = newValue
         }
         .onAppear {
@@ -393,13 +324,12 @@ struct RecordingStatusView: View {
     let isAnyCameraRecording: Bool
     @Binding var recordingPulse: Bool
     let connectedCameraCount: Int
-    let cameraGroupManager: CameraGroupManager
-    let groupStatus: GroupStatus?
+    let totalCameraCount: Int
+    let groupStatus: GroupStatus
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                // Recording indicator with pulse animation
                 RecordingPulseIndicatorView(
                     isRecording: isAnyCameraRecording,
                     recordingPulse: $recordingPulse
@@ -413,16 +343,13 @@ struct RecordingStatusView: View {
             }
 
             HStack(spacing: 16) {
-                // Camera count with status
                 HStack(spacing: 4) {
                     Image(systemName: "camera.fill")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                    // Show connected count and total if different
-                    if let activeGroup = cameraGroupManager.activeGroup,
-                       activeGroup.cameraIds.count != connectedCameraCount {
-                        Text("\(connectedCameraCount) of \(activeGroup.cameraIds.count)")
+                    if totalCameraCount != connectedCameraCount {
+                        Text("\(connectedCameraCount) of \(totalCameraCount)")
                             .font(.caption)
                             .fontWeight(.medium)
                             .kerning(0.5)
@@ -434,16 +361,11 @@ struct RecordingStatusView: View {
                             .fixedSize(horizontal: true, vertical: false)
                     }
 
-                    // Set status indicator
-                    if cameraGroupManager.activeGroup != nil,
-                       let status = groupStatus {
-                        Image(systemName: status.overallStatus.icon)
-                            .font(.caption)
-                            .foregroundColor(status.overallStatus.color)
-                    }
+                    Image(systemName: groupStatus.overallStatus.icon)
+                        .font(.caption)
+                        .foregroundColor(groupStatus.overallStatus.color)
                 }
 
-                // Recording status - removed text to prevent squishing
                 if isAnyCameraRecording {
                     HStack(spacing: 4) {
                         Image(systemName: "record.circle.fill")
