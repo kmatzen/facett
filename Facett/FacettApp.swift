@@ -103,5 +103,25 @@ enum DemoDataProvider {
         let mainGroup = CameraGroup(name: "Main Setup", cameraSerials: serials, configId: configManager.configs.first?.id)
         cameraGroupManager.cameraGroups = [mainGroup]
         cameraGroupManager.setActiveGroup(mainGroup)
+
+        let extraCameras: [(name: String, serial: String, battery: Int)] = [
+            ("GoPro 1122", "GP1122", 45),
+            ("GoPro 3344", "GP3344", 90),
+            ("GoPro 5566", "GP5566", 62),
+        ]
+        for extra in extraCameras {
+            let uuid = UUID()
+            let gopro = GoPro(identifier: uuid, name: extra.name)
+            gopro.hasReceivedInitialStatus = true
+            gopro.status.batteryPercentage = extra.battery
+            gopro.status.batteryLevel = extra.battery / 25
+            gopro.status.isBatteryPresent = true
+            gopro.status.isReady = true
+            gopro.status.wifiBars = 2
+            gopro.status.apSSID = extra.serial
+            CameraSerialResolver.shared.storeUUID(uuid, forSerial: extra.serial)
+            CameraIdentityManager.shared.storeCameraName(extra.name, forSerial: extra.serial)
+            bleManager.discoveredGoPros[uuid] = gopro
+        }
     }
 }

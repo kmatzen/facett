@@ -130,8 +130,7 @@ struct ContentView: View {
         GeometryReader { geometry in
             let isLandscape = geometry.size.width > geometry.size.height
 
-            NavigationStack {
-                ZStack {
+            ZStack {
                     VStack(spacing: 0) {
                         // Recording Controls at the very top
                         RecordingControlsView(
@@ -250,7 +249,6 @@ struct ContentView: View {
                     autoSyncTimer = nil
                     bleManager.onCameraStatusUpdated = nil
                 }
-            }
         }
     }
 

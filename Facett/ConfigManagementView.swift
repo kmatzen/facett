@@ -185,8 +185,9 @@ struct ConfigRowView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .foregroundColor(.secondary)
-                        .padding(8) // Increase tap area for menu
+                        .padding(8)
                 }
+                .accessibilityLabel("Config Actions")
                 .onTapGesture {} // Prevent menu tap from triggering row selection
             }
         }

@@ -73,6 +73,7 @@ struct CameraGroupRowView: View {
                             .foregroundColor(.secondary)
                             .padding(8)
                     }
+                    .accessibilityLabel("Group Actions")
                     .onTapGesture {} // Prevent menu tap from triggering row selection
                 }
             }
