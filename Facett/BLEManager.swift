@@ -230,6 +230,16 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         pendingCommands[uuid]?.removeAll { $0.command == command }
     }
 
+    /// Find and remove the first pending command matching a response command type
+    private func removeMatchingPendingCommand(responseCommandType: UInt8, from uuid: UUID) {
+        guard let pendingList = pendingCommands[uuid] else { return }
+        if let match = pendingList.first(where: { $0.command.count > 1 && $0.command[1] == responseCommandType }) {
+            removePendingCommand(match.command, from: uuid)
+        } else if let first = pendingList.first {
+            removePendingCommand(first.command, from: uuid)
+        }
+    }
+
     /// Handle command timeout
     private func handleCommandTimeout(for uuid: UUID, command: [UInt8], commandName: String) {
         guard let pendingCommandList = pendingCommands[uuid],
@@ -1111,9 +1121,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         // First, check for special 5-byte responses (claim control, turbo enable/disable, etc.).
         if handleFiveByteResponse(data, for: peripheral) {
-            // Remove any pending commands since we got a response
-            if let pendingCommandList = pendingCommands[uuid], let firstCommand = pendingCommandList.first {
-                removePendingCommand(firstCommand.command, from: uuid)
+            if data.count > 1 {
+                removeMatchingPendingCommand(responseCommandType: data[1], from: uuid)
             }
             return
         }
@@ -1195,10 +1204,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             log("Command response error for \(cameraName). Command type: \(commandType).")
         }
 
-        // Remove any pending commands since we got a response
-        if let pendingCommandList = pendingCommands[uuid], let firstCommand = pendingCommandList.first {
-            removePendingCommand(firstCommand.command, from: uuid)
-        }
+        removeMatchingPendingCommand(responseCommandType: commandType, from: uuid)
     }
 
     // MARK: - Handle Special 5-Byte Responses
