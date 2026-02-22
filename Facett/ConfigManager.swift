@@ -222,8 +222,8 @@ class ConfigManager: ObservableObject {
                 bleManager.sendSettingsToCamerasInGroup(activeGroup.cameraSerials, configManager: self, cameraGroupManager: cameraGroupManager)
             }
 
-            // Clear visual indicator and sync state after settings are sent
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            let syncIndicatorDuration: TimeInterval = 2.0 // Cosmetic: visual feedback duration
+            DispatchQueue.main.asyncAfter(deadline: .now() + syncIndicatorDuration) { [weak self] in
                 guard let self = self else { return }
                 self.isAutoSyncing = false
                 self.syncInProgress = false

@@ -40,7 +40,10 @@ class BLEDeviceStateManager: ObservableObject {
     private var connectionRetryTimers: [UUID: Timer] = [:]
     private var connectionAttemptTimers: [UUID: Timer] = [:]
 
-    // Configuration
+    // NOTE: The retry logic in this class (startConnectionRetry, handleConnectionFailure,
+    // connectionRetryTimers, connectionAttemptTimers) is currently unused — only the
+    // sleep/power-down state tracking is called from BLEManager. Consider removing
+    // the dead retry code or consolidating with BLEManager/BLEConnectionManager.
     private let maxRetryAttempts = 3
     private let baseRetryDelay: TimeInterval = 1.0
     private let maxRetryDelay: TimeInterval = 30.0

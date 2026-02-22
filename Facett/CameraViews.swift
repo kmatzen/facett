@@ -328,8 +328,7 @@ struct DisconnectedCameraCardView: View {
                 isConnecting = false // Stop local connecting animation when retry status is set
             }
         }
-        .onReceive(Timer.publish(every: 10.0, on: .main, in: .common).autoconnect()) { _ in
-            // Reset connecting state after 10 seconds if still connecting (timeout)
+        .onReceive(Timer.publish(every: 10.0, on: .main, in: .common).autoconnect()) { _ in // Cosmetic: UI connecting-spinner timeout
             if isConnecting {
                 isConnecting = false
             }
