@@ -220,9 +220,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
         pendingCommands[uuid]?.append(pendingCommand)
 
-        // Set up timeout timer
-        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
-            self.handleCommandTimeout(for: uuid, command: command, commandName: commandName)
+        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+            self?.handleCommandTimeout(for: uuid, command: command, commandName: commandName)
         }
     }
 
@@ -259,9 +258,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
             pendingCommands[uuid]?.append(retryCommand)
 
-            // Retry the command
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.sendCommand(command, to: uuid, commandName: commandName, requiresControl: pendingCommand.requiresControl)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.sendCommand(command, to: uuid, commandName: commandName, requiresControl: pendingCommand.requiresControl)
             }
         } else {
             log("❌ Command '\(commandName)' failed after \(commandRetryAttempts) attempts")
@@ -636,6 +634,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     deinit {
         stopDeviceQueryTimer()
         stopDeviceScanTimer()
+        stopStragglerRetryTimer()
+        connectionRetryTimers.values.forEach { $0.invalidate() }
+        connectionRetryTimers.removeAll()
+        connectionAttemptTimers.values.forEach { $0.invalidate() }
+        connectionAttemptTimers.removeAll()
+        commandQueueTimers.values.forEach { $0.invalidate() }
+        commandQueueTimers.removeAll()
     }
 
     /// Logs items with a timestamp, similar to `print`.
@@ -911,8 +916,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     }
 
                     // Schedule retry after exponential backoff delay
-                    self.connectionRetryTimers[uuid] = Timer.scheduledTimer(withTimeInterval: retryDelay, repeats: false) { _ in
-                        self.retryConnection(for: uuid)
+                    self.connectionRetryTimers[uuid] = Timer.scheduledTimer(withTimeInterval: retryDelay, repeats: false) { [weak self] _ in
+                        self?.retryConnection(for: uuid)
                     }
                 } else {
                     // Max retries reached, give up
@@ -1241,8 +1246,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         // Force a settings query to get the updated state
         // This ensures the camera's settings are properly reflected in the UI
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.queryAllSettings(from: peripheral)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.queryAllSettings(from: peripheral)
         }
     }
 
@@ -1369,10 +1374,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Clear any pending commands for this device
         pendingCommands[uuid]?.removeAll()
 
-        // Wait a moment then attempt to reconnect
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            self.log("🔄 Attempting to reconnect after authentication error...")
-            self.centralManager.connect(peripheral, options: nil)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+            self?.log("🔄 Attempting to reconnect after authentication error...")
+            self?.centralManager.connect(peripheral, options: nil)
         }
     }
 
@@ -1855,8 +1859,8 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             self.connectingGoPros[uuid] = gopro // Add to connecting list
 
             // Set up connection timeout for retry attempt
-            self.connectionAttemptTimers[uuid] = Timer.scheduledTimer(withTimeInterval: self.connectionTimeout, repeats: false) { _ in
-                self.handleConnectionTimeout(for: uuid)
+            self.connectionAttemptTimers[uuid] = Timer.scheduledTimer(withTimeInterval: self.connectionTimeout, repeats: false) { [weak self] _ in
+                self?.handleConnectionTimeout(for: uuid)
             }
         }
         centralManager.connect(gopro.peripheral, options: nil)
