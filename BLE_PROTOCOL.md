@@ -23,53 +23,58 @@ let GoProResponseUUID = CBUUID(string: "B5F90003-AA8D-11E3-9046-0002A5D5C51B")
 
 ## Packet Structure
 
+BLE 4.2 limits packets to 20 bytes. Larger messages are split across start + continuation packets.
+
+Reference: https://gopro.github.io/OpenGoPro/ble/protocol/data_protocol.html
+
 ### Header Format
 
-Every BLE packet starts with a 1-byte header:
+**Bit 7** determines start vs. continuation:
 
+- **Bit 7 = 0 → Start packet.** Bits 6-5 select the length format:
+  - `00` → General (5-bit): bits 4-0 = message length (max 31)
+  - `01` → Extended 13-bit: bits 4-0 + next byte = message length
+  - `10` → Extended 16-bit: next 2 bytes = message length (receive-only)
+- **Bit 7 = 1 → Continuation packet.** Bits 3-0 = 4-bit sequence counter (wraps at 0xF)
+
+### Start Packet Types
+
+#### General (5-bit length)
 ```
-┌─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┬─────────┐
-│ Bit 7   │ Bit 6   │ Bit 5   │ Bit 4   │ Bit 3   │ Bit 2   │ Bit 1   │ Bit 0   │
-├─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┼─────────┤
-│ Packet  │ Packet  │Continu- │ Reserved│ Reserved│ Reserved│ Reserved│ Reserved│
-│ Type    │ Type    │ation    │         │         │         │         │         │
-│ MSB     │ LSB     │ Bit     │         │         │         │         │         │
-└─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┴─────────┘
-```
-
-**Header Fields**:
-- **Bits 7-6**: Packet Type
-  - `00`: General packet
-  - `01`: Extended packet
-  - `10`: Continuation packet
-  - `11`: Reserved
-- **Bit 5**: Continuation bit (1 = more packets coming)
-- **Bits 4-0**: Reserved (must be 0)
-
-### Packet Types
-
-#### 1. **General Packet (Type 0)**
-```
-┌─────────┬─────────┬─────────┬─────────┬─────────────┐
-│ Header  │ Length  │ QueryID │ Status  │ TLV Data    │
-│ (1 byte)│ (1 byte)│ (1 byte)│ (1 byte)│ (variable)  │
-└─────────┴─────────┴─────────┴─────────┴─────────────┘
+Byte 0:  [0][00][5-bit message length]
+Bytes 1+: message payload
 ```
 
-#### 2. **Extended Packet (Type 1)**
+#### Extended 13-bit
 ```
-┌─────────┬─────────┬─────────┬─────────┬─────────┬─────────────┐
-│ Header  │ Length  │ QueryID │ Status  │ Extended│ TLV Data    │
-│ (1 byte)│ (2 bytes)│ (1 byte)│ (1 byte)│ (2 bytes)│ (variable)  │
-└─────────┴─────────┴─────────┴─────────┴─────────┴─────────────┘
+Byte 0:  [0][01][upper 5 bits of length]
+Byte 1:  [lower 8 bits of length]
+Bytes 2+: message payload
 ```
 
-#### 3. **Continuation Packet (Type 2)**
+#### Extended 16-bit (receive-only, for messages >= 8192 bytes)
 ```
-┌─────────┬─────────────┐
-│ Header  │ TLV Data    │
-│ (1 byte)│ (variable)  │
-└─────────┴─────────────┘
+Byte 0:  [0][10][reserved]
+Byte 1-2: 16-bit message length
+Bytes 3+: message payload
+```
+
+### Continuation Packet
+```
+Byte 0:  [1][reserved][4-bit counter]
+Bytes 1+: continuation payload (appended to accumulated message)
+```
+
+### Message Payload
+
+For query responses (on the Query Response characteristic), the message payload is:
+```
+[QueryID (1 byte)] [Status (1 byte)] [TLV data...]
+```
+
+For command responses (on the Command Response characteristic):
+```
+[CommandID (1 byte)] [Status (1 byte)] [optional response data...]
 ```
 
 ## TLV (Type-Length-Value) Encoding

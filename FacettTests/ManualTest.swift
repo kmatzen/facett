@@ -4,7 +4,7 @@ import Foundation
 // https://gopro.github.io/OpenGoPro/tutorials/parse-ble-responses#parsing-multiple-packet-tlv-responses
 
 // Copy the GoProBLEParser class here for testing
-class GoProBLEParser {
+class ManualTestBLEParser {
 
     // MARK: - Packet Reconstruction
 
@@ -246,13 +246,13 @@ class GoProBLEParser {
 // XCTest test class for GoProBLEParser
 import XCTest
 
-class GoProBLEParserTests: XCTestCase {
+class ManualBLEParserTests: XCTestCase {
 
-    var parser: GoProBLEParser!
+    var parser: ManualTestBLEParser!
 
     override func setUp() {
         super.setUp()
-        parser = GoProBLEParser()
+        parser = ManualTestBLEParser()
     }
 
     override func tearDown() {
@@ -361,7 +361,7 @@ class GoProBLEParserTests: XCTestCase {
 
     func testBufferStateManagement() {
         // Test 9: Buffer state management and cleanup
-        let parser = GoProBLEParser()
+        let parser = ManualTestBLEParser()
 
         // Start a multipart response
         let firstPacketData = Data([0x20, 0x5B, 0x00, 0x04, 0x00, 0x00, 0x00, 0x3E, 0x0C, 0x48, 0x45, 0x52, 0x4F, 0x31, 0x32, 0x20, 0x42, 0x6C, 0x61])
@@ -380,7 +380,7 @@ class GoProBLEParserTests: XCTestCase {
 
     func testMultiplePeripherals() {
         // Test 10: Multiple peripherals with independent buffers
-        let parser = GoProBLEParser()
+        let parser = ManualTestBLEParser()
 
         // Start multipart response for peripheral A
         let firstPacketA = Data([0x20, 0x5B, 0x00, 0x04, 0x00, 0x00, 0x00, 0x3E, 0x0C, 0x48, 0x45, 0x52, 0x4F, 0x31, 0x32, 0x20, 0x42, 0x6C, 0x61])
@@ -403,7 +403,7 @@ class GoProBLEParserTests: XCTestCase {
 
     func testContinuationPacketSequence() {
         // Test 11: Proper continuation packet sequence handling
-        let parser = GoProBLEParser()
+        let parser = ManualTestBLEParser()
 
         // Start multipart response
         let firstPacketData = Data([0x20, 0x5B, 0x00, 0x04, 0x00, 0x00, 0x00, 0x3E, 0x0C, 0x48, 0x45, 0x52, 0x4F, 0x31, 0x32, 0x20, 0x42, 0x6C, 0x61])
@@ -426,7 +426,7 @@ class GoProBLEParserTests: XCTestCase {
     func testRealGoProData() {
         // Test 12: Real GoPro data from user logs - this is the most important test!
         // This uses the exact packet sequence from your actual GoPro device
-        let parser = GoProBLEParser()
+        let parser = ManualTestBLEParser()
         let peripheralId = "2842C0A5-45B9-25F4-574A-F265889ED53B"
 
         // First packet: 20 3f 13 00 01 01 01 02 01 04 06 01 00 08 01 00 0a 01 00 0d
@@ -477,7 +477,7 @@ class GoProBLEParserTests: XCTestCase {
 
     func testRealGoProDataExpectedBytes() {
         // Test 13: Verify we extract the expected number of bytes from real data
-        let parser = GoProBLEParser()
+        let parser = ManualTestBLEParser()
         let peripheralId = "2842C0A5-45B9-25F4-574A-F265889ED53B"
 
         // Process first packet (expect 63 bytes total)
@@ -545,7 +545,7 @@ class GoProBLEParserTests: XCTestCase {
 
     func testRealGoProDataWithFifthPacket() {
         // Test 15: Test the specific fifth packet issue from the latest real data
-        let parser = GoProBLEParser()
+        let parser = ManualTestBLEParser()
         let peripheralId = "2842C0A5-45B9-25F4-574A-F265889ED53B"
 
         // First packet: 20 3f 13 00 01 01 01 02 01 04 06 01 00 08 01 00 0a 01 00 0d
@@ -592,7 +592,7 @@ class GoProBLEParserTests: XCTestCase {
 
     func testTwoStreamsConcurrently() {
         // Test 16: Test handling of two concurrent streams (query ID 19 and 18)
-        let parser = GoProBLEParser()
+        let parser = ManualTestBLEParser()
         let peripheralId = "2842C0A5-45B9-25F4-574A-F265889ED53B"
 
         // Process the multipart response for query ID 19 (4 packets, but incomplete)
@@ -637,7 +637,7 @@ class GoProBLEParserTests: XCTestCase {
     func testSinglePacketFormat2() {
         // Test 17: Test the alternative single packet format [header][queryID][status][TLV]
         // This is the format used by query ID 18: 0b 12 00 36 01 00 55 01 00 66 01 08
-        let parser = GoProBLEParser()
+        let parser = ManualTestBLEParser()
         let peripheralId = "test-peripheral"
 
         let packet = Data([0x0b, 0x12, 0x00, 0x36, 0x01, 0x00, 0x55, 0x01, 0x00, 0x66, 0x01, 0x08])
@@ -655,7 +655,7 @@ class GoProBLEParserTests: XCTestCase {
 
     func testInvalidPacketTypes() {
         // Test 14: Invalid packet types and edge cases
-        let parser = GoProBLEParser()
+        let parser = ManualTestBLEParser()
 
         // Empty packet
         let emptyResponses = parser.processPacket(Data(), peripheralId: "test-peripheral")
