@@ -40,7 +40,7 @@ struct AboutView: View {
                 Section(header: Text("Compatibility")) {
                     Label {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("GoPro HERO10 Black")
+                            Text("GoPro\u{00AE} HERO10 Black")
                                 .font(.subheadline)
                             Text("Tested with GoPro Labs firmware. Other models may work but are not officially supported.")
                                 .font(.caption)
@@ -66,7 +66,7 @@ struct AboutView: View {
                 }
 
                 Section(header: Text("Legal")) {
-                    Text("This app is not affiliated with, endorsed by, or sponsored by GoPro, Inc. GoPro, HERO, and their respective logos are trademarks or registered trademarks of GoPro, Inc.")
+                    Text("This product and/or service is not affiliated with, endorsed by or in any way associated with GoPro Inc. or its products and services. GoPro, HERO and their respective logos are trademarks or registered trademarks of GoPro, Inc.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
