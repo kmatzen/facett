@@ -1,0 +1,41 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Capture App Store screenshots"
+  lane :screenshots do
+    output_dir = File.expand_path("./fastlane/screenshots")
+    cache_dir = File.expand_path("~/Library/Caches/tools.fastlane")
+    screenshots_dir = File.join(cache_dir, "screenshots")
+
+    FileUtils.mkdir_p(screenshots_dir)
+    File.write(File.join(cache_dir, "language.txt"), "en-US")
+    File.write(File.join(cache_dir, "locale.txt"), "en_US")
+
+    devices = [
+      "iPhone 16 Pro Max",
+      "iPhone 16",
+      "iPhone SE (3rd generation)",
+      "iPad Pro 13-inch (M4)"
+    ]
+
+    devices.each do |device|
+      UI.message("Capturing screenshots on #{device}...")
+      scan(
+        project: "Facett.xcodeproj",
+        scheme: "Facett",
+        destination: "platform=iOS Simulator,name=#{device}",
+        only_testing: ["FacettUITests/SnapshotTests"],
+        result_bundle: false,
+        clean: false,
+        xcargs: "FASTLANE_SNAPSHOT=YES"
+      )
+    end
+
+    FileUtils.mkdir_p(output_dir)
+    Dir.glob(File.join(screenshots_dir, "*.png")).each do |f|
+      FileUtils.cp(f, output_dir)
+    end
+
+    UI.success("#{Dir.glob(File.join(output_dir, '*.png')).count} screenshots saved to fastlane/screenshots/")
+  end
+end
