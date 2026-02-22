@@ -5,7 +5,6 @@ line_length:
 file_length:
   warning: 1000
   error: 2600
-  ignores_comments: true
 
 type_body_length:
   warning: 800
