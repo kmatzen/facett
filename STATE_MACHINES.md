@@ -1,23 +1,8 @@
-# State Machines Documentation
+# State Machines
 
-This document provides a comprehensive and accurate description of all state machines in Facett, based on the actual code implementation.
+Facett uses several implicit state machines to manage complex workflows. This document describes the states, transitions, and interactions — see the source code for implementation details.
 
-## Overview
-
-Facett uses several implicit state machines to manage complex workflows:
-
-1. **BLE Device Lifecycle State Machine** - Manages device discovery, connection, and disconnection
-2. **Camera Operational Status State Machine** - Tracks individual camera operational states
-3. **Camera Group Status State Machine** - Manages group-level status based on member cameras
-4. **Control State Machine** - Manages camera control acquisition and loss
-5. **Settings Synchronization State Machine** - Handles settings sync across cameras
-6. **Command Response State Machine** - Tracks BLE command responses and timeouts
-7. **Straggler Connection Management State Machine** - Handles failed connections during bulk operations
-8. **Sleep/Power Down State Machine** - Manages graceful disconnection
-
-## 1. BLE Device Lifecycle State Machine
-
-### State Definitions
+## 1. BLE Device Lifecycle
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -27,503 +12,150 @@ Facett uses several implicit state machines to manage complex workflows:
          ▲                       │                       │
          │                       ▼                       ▼
          │              ┌─────────────────┐    ┌─────────────────┐
-         │              │   Failed        │    │  Disconnected   │
-         │              │(max retries)    │    │(connection lost)│
+         │              │     Failed      │    │  Disconnected   │
+         │              │ (max retries)   │    │(connection lost) │
          │              └─────────────────┘    └─────────────────┘
          │                       │                       │
          └───────────────────────┴───────────────────────┘
 ```
 
-### State Transitions
+- **Discovered** — device found via BLE scan, available for connection
+- **Connecting** — connection attempt in progress; retries up to 3 times with exponential backoff
+- **Connected** — BLE link established; status queries and commands enabled
+- **Failed** — max retries reached; device returns to Discovered on rediscovery
+- **Disconnected** — connection lost; device returns to Discovered on rediscovery
 
-#### **Discovered State**
-- **Collection**: `discoveredGoPros`
-- **Entry**: Device discovered via BLE scan
-- **Exit**: Connection attempt initiated
-- **Actions**: Device available for connection
-
-#### **Connecting State**
-- **Collection**: `connectingGoPros`
-- **Entry**: `connectToGoPro()` called
-- **Exit**: Connection succeeds or fails
-- **Actions**:
-  - Connection retry logic active
-  - UI shows connecting animation
-  - Retry count tracking
-
-#### **Connected State**
-- **Collection**: `connectedGoPros`
-- **Entry**: BLE connection established
-- **Exit**: Device disconnects
-- **Actions**:
-  - Status queries active
-  - Command sending enabled
-  - Settings synchronization possible
-
-#### **Failed State**
-- **Entry**: Max retry attempts reached
-- **Exit**: Manual retry or device rediscovery
-- **Actions**: Device moved back to discovered state
-
-#### **Disconnected State**
-- **Entry**: Connection lost or device powered off
-- **Exit**: Device rediscovery
-- **Actions**: Device moved back to discovered state
-
-### Implementation Details
-
-```swift
-// Connection retry logic
-private var connectionRetryCount: [UUID: Int] = [:]
-private var connectionRetryTimers: [UUID: Timer] = [:]
-private let maxRetryAttempts = 3
-private let retryDelay: TimeInterval = 2.0
-
-// State collections
-@Published var discoveredGoPros: [UUID: GoPro] = [:]
-@Published var connectingGoPros: [UUID: GoPro] = [:]
-@Published var connectedGoPros: [UUID: GoPro] = [:]
-```
-
-## 2. Camera Operational Status State Machine
-
-### State Definitions
+## 2. Camera Operational Status
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │  Initializing   │───▶│     Ready       │───▶│    Recording    │
-│(hasReceivedInitialStatus=false)│(hasReceivedInitialStatus=true)│(isEncoding=true)│
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│     Error       │    │      Busy       │    │   Overheating   │
-│(isReady=false)  │    │(isBusy=true)    │    │(isOverheating=true)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Low Battery    │    │   No SD Card    │    │ Settings Mismatch│
-│(batteryLevel≤1) │    │(sdCardRemaining=0)│(settings don't match)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+                                │                       │
+                                ▼                       ▼
+                       ┌─────────────────┐    ┌─────────────────┐
+                       │      Busy       │    │   Overheating   │
+                       └─────────────────┘    └─────────────────┘
+                                │                       │
+                                ▼                       ▼
+                       ┌─────────────────┐    ┌─────────────────┐
+                       │   Low Battery   │    │ Settings Mismatch│
+                       └─────────────────┘    └─────────────────┘
 ```
 
-### State Priority Order (Highest to Lowest)
+### Priority Order (highest → lowest)
 
-1. **Overheating** - `isOverheating == true`
-2. **No SD Card** - `sdCardRemaining == nil || sdCardRemaining == 0`
-3. **Low Battery** - `batteryLevel <= 1`
-4. **Recording** - `isEncoding == true`
-5. **Settings Mismatch** - Settings don't match target configuration
-6. **Ready** - `isReady == true`
-7. **Error** - `isReady == false` (catch-all)
-8. **Initializing** - `hasReceivedInitialStatus == false`
+1. **Overheating** — `isOverheating == true`
+2. **No SD Card** — `sdCardRemaining` is nil or 0
+3. **Low Battery** — `batteryLevel <= 1`
+4. **Recording** — `isEncoding == true`
+5. **Settings Mismatch** — camera settings differ from target config
+6. **Ready** — `isReady == true`
+7. **Error** — `isReady == false` (catch-all)
+8. **Initializing** — `hasReceivedInitialStatus == false`
 
-### Implementation Details
+See `CameraGroup.getCameraStatus(_:bleManager:)` for the implementation.
 
-```swift
-func getCameraStatus(_ camera: GoPro, bleManager: BLEManager) -> CameraStatus {
-    // Priority 1: Initializing
-    if !camera.hasReceivedInitialStatus {
-        return .initializing
-    }
+## 3. Camera Group Status
 
-    // Priority 2: Overheating
-    if camera.settings.isOverheating == true {
-        return .overheating
-    }
+Aggregate status across all cameras in a group.
 
-    // Priority 3: No SD Card
-    if camera.settings.sdCardRemaining == nil || camera.settings.sdCardRemaining == 0 {
-        return .noSDCard
-    }
+### Priority Order (highest → lowest)
 
-    // Priority 4: Low Battery
-    if let batteryLevel = camera.settings.batteryLevel, batteryLevel <= 1 {
-        return .lowBattery
-    }
+1. **Error** — any camera has an error
+2. **Recording** — any camera is recording
+3. **Connecting** — any camera is connecting
+4. **Initializing** — any camera is initializing
+5. **Ready** — all cameras are ready
+6. **Settings Mismatch** — some cameras disconnected or settings differ
+7. **Disconnected** — all cameras disconnected
 
-    // Priority 5: Recording
-    if camera.settings.isEncoding == true {
-        return .recording
-    }
+See `GroupStatus.overallStatus` for the implementation.
 
-    // Priority 6: Settings Mismatch
-    if hasSettingsMismatch(camera, bleManager: bleManager) {
-        return .settingsMismatch
-    }
-
-    // Priority 7: Ready
-    if camera.settings.isReady == true {
-        return .ready
-    }
-
-    // Priority 8: Error (catch-all)
-    return .error
-}
-```
-
-### State Properties
-
-#### **Initializing State**
-- **Condition**: `hasReceivedInitialStatus = false`
-- **Entry**: Device first connects
-- **Exit**: First status response received
-- **Actions**: Waiting for initial status query response
-
-#### **Ready State**
-- **Condition**: `hasReceivedInitialStatus = true` AND `isReady = true`
-- **Actions**:
-  - Can receive commands
-  - Can have settings applied
-  - Can start/stop recording
-  - Periodic status monitoring active
-
-#### **Recording State**
-- **Condition**: `isEncoding = true`
-- **Actions**:
-  - Cannot have settings changed
-  - Recording indicator active
-  - Status queries continue
-  - Settings queries suspended
-
-#### **Busy State**
-- **Condition**: `isBusy = true`
-- **Actions**:
-  - Commands queued, not sent
-  - Status queries continue
-  - Temporary state during command processing
-
-#### **Error States**
-- **Overheating**: `isOverheating = true`
-- **Cold**: `isCold = true`
-- **SD Card Error**: `hasSDCardWriteSpeedError = true`
-- **Low Battery**: `batteryLevel < 2`
-
-## 3. Camera Group Status State Machine
-
-### State Definitions
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Disconnected  │───▶│   Connecting    │───▶│    Ready        │
-│(all cameras disconnected)│(any camera connecting)│(all cameras ready)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       ▼                       ▼
-         │              ┌─────────────────┐    ┌─────────────────┐
-         │              │   Initializing  │    │   Recording     │
-         │              │(any camera initializing)│(any camera recording)│
-         │              └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┴───────────────────────┘
-```
-
-### Group Status Priority Order (Highest to Lowest)
-
-1. **Error** - Any camera has error status
-2. **Recording** - Any camera is recording
-3. **Connecting** - Any camera is connecting
-4. **Initializing** - Any camera is initializing
-5. **Ready** - All cameras are ready
-6. **Settings Mismatch** - Some cameras disconnected or settings don't match
-7. **Disconnected** - All cameras disconnected
-
-### Implementation Details
-
-```swift
-var overallStatus: CameraStatus {
-    if errorCameras > 0 {
-        return .error
-    } else if disconnectedCameras == totalCameras {
-        return .disconnected
-    } else if recordingCameras > 0 {
-        return .recording
-    } else if connectingCameras > 0 {
-        return .connecting
-    } else if initializingCameras > 0 {
-        return .initializing
-    } else if readyCameras == totalCameras {
-        return .ready
-    } else if disconnectedCameras > 0 {
-        return .settingsMismatch
-    } else {
-        return .settingsMismatch
-    }
-}
-```
-
-### Group Status Properties
-
-```swift
-struct GroupStatus {
-    let totalCameras: Int
-    let readyCameras: Int
-    let errorCameras: Int
-    let disconnectedCameras: Int
-    let recordingCameras: Int
-    let connectingCameras: Int
-    let initializingCameras: Int
-}
-```
-
-## 4. Control State Machine
-
-### State Definitions
+## 4. Control
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │  No Control     │───▶│ Claiming Control│───▶│  Has Control    │
-│(hasControl=false)│   │(claimControl sent)│   │(hasControl=true)│
+│(hasControl=false)│   │                 │   │(hasControl=true) │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          ▲                       │                       │
          │                       ▼                       ▼
          │              ┌─────────────────┐    ┌─────────────────┐
-         │              │   Lost Control  │    │ Releasing Control│
-         │              │(cameraControlId!=2)│   │(releaseControl sent)│
+         │              │  Lost Control   │    │Releasing Control│
+         │              │(controlId != 2) │    │                 │
          │              └─────────────────┘    └─────────────────┘
          │                       │                       │
          └───────────────────────┴───────────────────────┘
 ```
 
-### Control States
+- Must have control (`hasControl = true`, `cameraControlId = 2`) to send recording or settings commands
+- Control is automatically reclaimed when lost
 
-#### **No Control State**
-- **Condition**: `hasControl = false`
-- **Actions**: Cannot send recording or settings commands
-
-#### **Claiming Control State**
-- **Entry**: `claimControl()` called
-- **Actions**: Send control claim command, wait for response
-
-#### **Has Control State**
-- **Condition**: `hasControl = true` AND `cameraControlId = 2`
-- **Actions**: Can send all commands (recording, settings, etc.)
-
-#### **Lost Control State**
-- **Entry**: `cameraControlId` response indicates loss of control
-- **Actions**: Automatically attempt to reclaim control
-
-### Implementation Details
-
-```swift
-// Control assertion
-assert(gopro.hasControl, "Attempted to send a command requiring control without having it.")
-
-// Control acquisition
-gopro.hasControl = true
-
-// Control loss
-gopro.hasControl = false
-```
-
-## 5. Settings Synchronization State Machine
-
-### State Definitions
+## 5. Settings Synchronization
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Synced        │───▶│   Syncing       │───▶│   Validating    │
-│(all cameras match)│   │(settings being sent)│(checking results)│
+│     Synced      │───▶│    Syncing      │───▶│   Validating    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          ▲                       │                       │
          │                       ▼                       ▼
          │              ┌─────────────────┐    ┌─────────────────┐
-         │              │   Mismatch      │    │     Error       │
-         │              │(settings differ)│    │(sync failed)    │
+         │              │    Mismatch     │    │      Error      │
          │              └─────────────────┘    └─────────────────┘
          │                       │                       │
          └───────────────────────┴───────────────────────┘
 ```
 
-### Settings Mismatch Detection
+- Cannot sync while recording
+- Must have control to send settings
+- Mismatch detection compares critical settings (resolution, FPS, auto power down, GPS, hypersmooth, quick capture)
 
-```swift
-private func hasSettingsMismatch(_ camera: GoPro, bleManager: BLEManager) -> Bool {
-    // Skip settings mismatch checks for recording cameras
-    if camera.settings.isEncoding == true {
-        return false
-    }
-
-    let targetSettings = configManager.getTargetSettings(for: activeGroup)
-
-    // Check critical settings only
-    if camera.settings.videoResolution != targetSettings.videoResolution {
-        return true
-    }
-    if camera.settings.framesPerSecond != targetSettings.framesPerSecond {
-        return true
-    }
-    if camera.settings.autoPowerDown != targetSettings.autoPowerDown {
-        return true
-    }
-    if camera.settings.gps != targetSettings.gps {
-        return true
-    }
-    if camera.settings.hypersmooth != targetSettings.hypersmooth {
-        return true
-    }
-    if camera.settings.quickCapture != targetSettings.quickCapture {
-        return true
-    }
-
-    return false
-}
-```
-
-## 6. Command Response State Machine
-
-### State Definitions
+## 6. Command Response
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Command Sent   │───▶│  Response Wait  │───▶│  Response Received│
-│(command queued) │   │(pendingCommands)│   │(response processed)│
+│  Command Sent   │───▶│  Response Wait  │───▶│Response Received│
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       ▼                       │
-         │              ┌─────────────────┐              │
-         │              │   Timeout       │              │
-         │              │(command timeout)│              │
-         │              └─────────────────┘              │
-         │                       │                       │
-         └───────────────────────┴───────────────────────┘
+                                │
+                                ▼
+                       ┌─────────────────┐
+                       │    Timeout      │
+                       └─────────────────┘
 ```
 
-### Command States
+- Commands tracked in `pendingCommands` until response or timeout (3–5 seconds)
 
-- **Command Sent**: Command written to BLE characteristic
-- **Response Wait**: Waiting for response in `pendingCommands`
-- **Response Received**: Response processed, command removed from pending
-- **Timeout**: Command removed from pending after timeout (3-5 seconds)
+## 7. Straggler Connection Management
 
-### Implementation Details
+Handles cameras that fail to connect during bulk "Connect All" operations.
 
-```swift
-// Command tracking
-private var pendingCommands: [UUID: [Command]] = [:]
+- **Retry interval**: 15 seconds
+- **Max retries**: 5 per straggler
+- Stragglers are abandoned after max retries and removed from target set
 
-// Timeout handling
-private var timeoutCheckTimer: Timer?
+## 8. Sleep / Power Down
 
-// Command response processing
-func processCommandResponse(_ response: Data, from peripheral: CBPeripheral) {
-    // Process response and remove from pending
-}
-```
+1. Release control → 0.5 s delay → send sleep/power-down command
+2. Wait up to 3 seconds for response
+3. Disconnect (on response or timeout)
 
-## 7. Straggler Connection Management State Machine
-
-### State Definitions
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Target Set     │───▶│  Straggler      │───▶│   Retrying      │
-│(targetConnectedCameras)│(not connected/connecting)│(stragglerRetryCount)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Connected     │    │   Max Retries   │    │   Abandoned     │
-│(successfully connected)│(stragglerRetryCount>=5)│(removed from targets)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-### Straggler Management
-
-- **Retry Interval**: 15 seconds between attempts
-- **Max Retries**: 5 attempts per straggler
-- **Timeout**: Straggler timer runs until all targets connected or abandoned
-- **Actions**: Automatic reconnection attempts for failed cameras
-
-### Implementation Details
-
-```swift
-// Straggler tracking
-private var stragglerRetryTimer: Timer?
-private var stragglerRetryCount: [UUID: Int] = [:]
-private let maxStragglerRetries = 5
-private let stragglerRetryInterval: TimeInterval = 15.0
-private var targetConnectedCameras: Set<UUID> = []
-```
-
-## 8. Sleep/Power Down State Machine
-
-### State Definitions
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Normal         │───▶│  Sleep Command  │───▶│  Disconnecting  │
-│(connected)      │   │(pendingSleepCommands)│(waiting for response)│
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       ▼                       ▼
-         │              ┌─────────────────┐    ┌─────────────────┐
-         │              │   Timeout       │    │   Disconnected  │
-         │              │(3 second timeout)│   │(connection closed)│
-         │              └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┴───────────────────────┘
-```
-
-### Sleep/Power Down Process
-
-1. **Release Control**: Send `releaseControl()` command
-2. **Wait**: 0.5 second delay
-3. **Send Sleep/Power Command**: Add to `pendingSleepCommands` or `pendingPowerDownCommands`
-4. **Wait for Response**: Up to 3 seconds
-5. **Disconnect**: Either on response or timeout
-
-### Implementation Details
-
-```swift
-// Sleep/power down tracking
-private var pendingSleepCommands: Set<UUID> = []
-private var pendingPowerDownCommands: Set<UUID> = []
-
-// Sleep command process
-func sendSleepCommand(to cameraId: UUID) {
-    // Release control first
-    releaseControl(for: cameraId)
-
-    // Wait 0.5 seconds
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-        // Send sleep command
-        self.pendingSleepCommands.insert(cameraId)
-        // Start 3-second timeout
-    }
-}
-```
+Tracked via `pendingSleepCommands` / `pendingPowerDownCommands` sets.
 
 ## State Machine Interactions
 
-These state machines interact in complex ways:
+1. **Connection** affects **Operational Status** — must be connected to be ready
+2. **Control** affects **Sync** — must have control to send settings
+3. **Recording** affects **Sync** — cannot sync while recording
+4. **Stragglers** affect **Group Status** — stragglers prevent group from being fully ready
+5. **Commands** affect **All** — commands can change any camera state
 
-1. **Connection State** affects **Operational State**: Camera must be connected to be ready
-2. **Control State** affects **Sync State**: Must have control to send settings
-3. **Recording State** affects **Sync State**: Cannot sync while recording
-4. **Straggler State** affects **Group State**: Stragglers prevent group from being ready
-5. **Command State** affects **All States**: Commands can change any camera state
+## Debugging Tips
 
-## Debugging State Machines
-
-To debug state machine issues:
-
-1. **Check Collections**: Verify device is in correct collection (`discoveredGoPros`, `connectingGoPros`, `connectedGoPros`)
-2. **Check Properties**: Verify `hasControl`, `hasReceivedInitialStatus`, `isReady`, etc.
-3. **Check Timers**: Verify query timers are running for connected devices
-4. **Check Pending Commands**: Verify commands are being processed and removed from pending
-5. **Check Retry Counts**: Verify retry logic is working correctly
-6. **Check Straggler State**: Verify straggler management for bulk operations
-
-## Testing State Machines
-
-The state machines are tested comprehensively with:
-
-1. **Unit Tests**: Individual state transitions and conditions
-2. **Integration Tests**: State machine interactions
-3. **Edge Case Tests**: Nil values, empty groups, multiple conditions
-4. **Simulated Data**: Mock cameras with various states
-5. **Priority Tests**: Verify correct state priority ordering
+1. Verify the device is in the correct collection (`discoveredGoPros`, `connectingGoPros`, `connectedGoPros`)
+2. Check `hasControl`, `hasReceivedInitialStatus`, `isReady`, `isEncoding`
+3. Verify query timers are running for connected devices
+4. Check `pendingCommands` for stuck commands
+5. Check retry counts and straggler state for bulk operations
 
 See `StateMachineTests.swift` for comprehensive test coverage.
