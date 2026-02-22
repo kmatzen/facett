@@ -70,7 +70,7 @@ enum DemoDataProvider {
         DemoCamera(uuid: UUID(), name: "GoPro 6287", serial: "GP6287",
                    battery: 51, sdRemaining: 31_000_000, isEncoding: true, encodingDuration: 127),
         DemoCamera(uuid: UUID(), name: "GoPro 9520", serial: "GP9520",
-                   battery: 78, sdRemaining: 72_000_000, isEncoding: false, encodingDuration: 0),
+                   battery: 78, sdRemaining: 72_000_000, isEncoding: true, encodingDuration: 127),
     ]
 
     static func populate(bleManager: BLEManager, cameraGroupManager: CameraGroupManager, configManager: ConfigManager) {
