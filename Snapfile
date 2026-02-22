@@ -5,6 +5,8 @@ devices([
   "iPad Pro 13-inch (M4)"
 ])
 
+ios_version("18.3.1")
+
 languages(["en-US"])
 
 scheme("Facett")
