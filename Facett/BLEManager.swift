@@ -1,8 +1,6 @@
 import SwiftUI
 import CoreBluetooth
 
-// ConnectionRetryStatus enum is now defined in BLEConnectionManager.swift
-
 // MARK: - Camera Mode Enum
 
 enum CameraMode: Int, CaseIterable {
@@ -1310,7 +1308,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         serviceDiscoveryRetries[uuid] = currentRetries + 1
         let delay = errorRecoveryDelay * Double(currentRetries + 1)
 
-        log("🔄 Retrying service discovery for \(CameraIdentityManager.shared.getDisplayName(for: uuid)) (attempt \(currentRetries + 1)/\(maxServiceDiscoveryRetries)) in \(String(format: "%.1f", delay)) seconds")
+        let name = CameraIdentityManager.shared.getDisplayName(for: uuid)
+        log("🔄 Retrying service discovery for \(name) " +
+            "(attempt \(currentRetries + 1)/\(maxServiceDiscoveryRetries)) in \(String(format: "%.1f", delay))s")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self, let gopro = self.connectedGoPros[uuid] else { return }
@@ -1331,7 +1331,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         characteristicDiscoveryRetries[uuid] = currentRetries + 1
         let delay = errorRecoveryDelay * Double(currentRetries + 1)
 
-        log("🔄 Retrying characteristic discovery for \(CameraIdentityManager.shared.getDisplayName(for: uuid)) (attempt \(currentRetries + 1)/\(maxCharacteristicDiscoveryRetries)) in \(String(format: "%.1f", delay)) seconds")
+        let name = CameraIdentityManager.shared.getDisplayName(for: uuid)
+        log("🔄 Retrying characteristic discovery for \(name) " +
+            "(attempt \(currentRetries + 1)/\(maxCharacteristicDiscoveryRetries)) in \(String(format: "%.1f", delay))s")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self, let gopro = self.connectedGoPros[uuid] else { return }
@@ -1352,7 +1354,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         commandWriteRetries[uuid] = currentRetries + 1
         let delay = errorRecoveryDelay * Double(currentRetries + 1)
 
-        log("🔄 Retrying command write for \(CameraIdentityManager.shared.getDisplayName(for: uuid)) (attempt \(currentRetries + 1)/\(maxCommandWriteRetries)) in \(String(format: "%.1f", delay)) seconds")
+        let name = CameraIdentityManager.shared.getDisplayName(for: uuid)
+        log("🔄 Retrying command write for \(name) " +
+            "(attempt \(currentRetries + 1)/\(maxCommandWriteRetries)) in \(String(format: "%.1f", delay))s")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self = self, let gopro = self.connectedGoPros[uuid] else { return }
@@ -1500,7 +1504,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         // Log health status if it's degraded
         if healthScore < 0.7 || successRate < 0.8 {
-            log("⚠️ Connection health degraded for \(CameraIdentityManager.shared.getDisplayName(for: uuid)): score=\(String(format: "%.2f", healthScore)), success=\(Int(successRate * 100))%, avgTime=\(String(format: "%.1f", averageResponseTime))s, issues=\(issues.joined(separator: ", "))")
+            let name = CameraIdentityManager.shared.getDisplayName(for: uuid)
+            log("⚠️ Connection health degraded for \(name): " +
+                "score=\(String(format: "%.2f", healthScore)), " +
+                "success=\(Int(successRate * 100))%, " +
+                "avgTime=\(String(format: "%.1f", averageResponseTime))s, " +
+                "issues=\(issues.joined(separator: ", "))")
         }
 
         // Take action if health is critically low
@@ -1579,7 +1588,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             let cameraName = CameraIdentityManager.shared.getDisplayName(for: uuid)
 
             // Log performance summary
-            log("📊 Performance Report for \(cameraName): commands=\(metrics.totalCommands), success=\(Int(metrics.successRate * 100))%, avgTime=\(String(format: "%.2f", metrics.averageResponseTime))s, uptime=\(String(format: "%.1f", metrics.connectionUptime))s, retries=\(metrics.retryCount)")
+            log("📊 Performance Report for \(cameraName): " +
+                "commands=\(metrics.totalCommands), " +
+                "success=\(Int(metrics.successRate * 100))%, " +
+                "avgTime=\(String(format: "%.2f", metrics.averageResponseTime))s, " +
+                "uptime=\(String(format: "%.1f", metrics.connectionUptime))s, " +
+                "retries=\(metrics.retryCount)")
 
             // Report to crash reporter if performance is poor
             if !metrics.isPerformingWell {
@@ -1642,7 +1656,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
 
         if !updatedStability.isStable {
-            log("⚠️ Connection stability issue for \(CameraIdentityManager.shared.getDisplayName(for: uuid)): disconnections=\(newDisconnectionCount), stability=\(String(format: "%.2f", stabilityScore))")
+            let name = CameraIdentityManager.shared.getDisplayName(for: uuid)
+            log("⚠️ Connection stability issue for \(name): " +
+                "disconnections=\(newDisconnectionCount), stability=\(String(format: "%.2f", stabilityScore))")
         }
     }
 

@@ -132,7 +132,10 @@ struct ContentView: View {
             CameraIdentityManager.shared.getDisplayName(for: camera.peripheral.identifier, currentName: camera.name)
         }.joined(separator: ", ")
 
-        return "The following cameras are not in video mode and need to be manually switched:\n\n\(cameraNames)\n\nPlease use the camera's physical controls to switch them to video mode, then try recording again."
+        return "The following cameras are not in video mode " +
+            "and need to be manually switched:\n\n\(cameraNames)\n\n" +
+            "Please use the camera's physical controls to switch " +
+            "them to video mode, then try recording again."
     }
 
     var body: some View {
