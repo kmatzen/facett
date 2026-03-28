@@ -19,7 +19,9 @@ https://github.com/kmatzen/facett/issues
 
 ## Description
 
-Facett lets you control multiple action cameras at once from your iPhone. Connect up to 9 cameras over Bluetooth Low Energy, organize them into groups, synchronize settings, and start or stop recording across every camera simultaneously.
+Facett is a free and open-source app that lets you control multiple action cameras at once from your iPhone. The full source code is available on GitHub — anyone is free to build and install it themselves.
+
+Connect cameras over Bluetooth Low Energy, organize them into groups, synchronize settings, and start or stop recording across every camera simultaneously.
 
 **Key Features**
 
