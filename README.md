@@ -53,6 +53,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full list of test suites.
 - [ARCHITECTURE.md](ARCHITECTURE.md) — System design and component overview
 - [BLE_PROTOCOL.md](BLE_PROTOCOL.md) — GoPro BLE protocol details
 - [CRASH_REPORTING.md](CRASH_REPORTING.md) — Crash reporting system
+- [SUPPORT.md](SUPPORT.md) — FAQ, troubleshooting, and how to get help
 
 ## Contributing
 
