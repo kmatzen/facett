@@ -13,7 +13,7 @@ Photography
 https://github.com/kmatzen/facett/blob/main/PRIVACY_POLICY.md
 
 ## Support URL
-https://github.com/kmatzen/facett/issues
+https://github.com/kmatzen/facett/blob/main/SUPPORT.md
 
 ---
 
