@@ -894,7 +894,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         switch characteristic.uuid {
         case Constants.UUIDs.queryResponse:
             ErrorHandler.debug("Processing query response for \(peripheral.name ?? "a device")")
-            responseHandler.handleQueryResponse(data, for: peripheral)
+            responseHandler.handleQueryResponse(data, for: peripheral, channel: characteristic.uuid)
 
         case Constants.UUIDs.commandResponse:
             ErrorHandler.debug("Processing command response for \(peripheral.name ?? "a device")")
@@ -1143,7 +1143,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         verifySettings(data, for: peripheral)
 
         // Parse the response to update camera settings with actual values from the camera
-        responseHandler.handleQueryResponse(data, for: peripheral)
+        responseHandler.handleQueryResponse(data, for: peripheral, channel: Constants.UUIDs.settingsResponse)
 
         DispatchQueue.main.asyncAfter(deadline: .now() + settingsQueryDelay) { [weak self] in
             guard let self = self, let gopro = self.connectedGoPros[peripheral.identifier] else { return }
@@ -1911,15 +1911,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
                     // Run heavy BLE operations on background queue
                     bleQueue.async {
-                        // Check for timeouts in multipart responses
-                        let timeoutResponses = self.bleParser.checkTimeouts(timeoutInterval: self.multipartResponseTimeout)
-                        if !timeoutResponses.isEmpty {
-                            ErrorHandler.debug("Processing \(timeoutResponses.count) responses from timed out buffers")
-                            DispatchQueue.main.async {
-                                for uuid in self.connectedGoPros.keys {
-                                    self.responseHandler.updateGoProStatus(uuid: uuid, with: timeoutResponses)
-                                }
-                            }
+                        // Discard multipart responses that never completed. These used
+                        // to be force-completed and applied to EVERY connected camera,
+                        // because the reassembler dropped the peripheral half of the
+                        // buffer key on the way out. Truncated data is now dropped.
+                        let discarded = self.bleParser.checkTimeouts(timeoutInterval: self.multipartResponseTimeout)
+                        if discarded > 0 {
+                            ErrorHandler.debug("Discarded \(discarded) timed out partial messages")
                         }
 
                         // Query devices on background thread

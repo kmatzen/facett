@@ -19,7 +19,7 @@ final class PacketReconstructorTests: XCTestCase {
     // MARK: - Empty / Invalid Input
 
     func testEmptyData() {
-        let result = reconstructor.processPacket(Data(), peripheralId: "p1")
+        let result = reconstructor.processPacket(Data(), peripheralId: "p1", channelId: "chQuery")
         XCTAssertNil(result)
     }
 
@@ -30,7 +30,7 @@ final class PacketReconstructorTests: XCTestCase {
         // Message: [0x13] [0x00 (success)] [TLV: type=70, len=1, val=85 (battery 85%)]
         // Message length = 5 bytes → header = 0b000_00101 = 0x05
         let packet = Data([0x05, 0x13, 0x00, 70, 0x01, 0x55])
-        let result = reconstructor.processPacket(packet, peripheralId: "p1")
+        let result = reconstructor.processPacket(packet, peripheralId: "p1", channelId: "chQuery")
 
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.queryID, 0x13)
@@ -43,7 +43,7 @@ final class PacketReconstructorTests: XCTestCase {
         // Message: [0x12] [0x00] [TLV: type=2, len=1, val=1 (4K resolution)]
         // Message length = 5 → header = 0x05
         let packet = Data([0x05, 0x12, 0x00, 2, 0x01, 0x01])
-        let result = reconstructor.processPacket(packet, peripheralId: "p1")
+        let result = reconstructor.processPacket(packet, peripheralId: "p1", channelId: "chQuery")
 
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.queryID, 0x12)
@@ -55,7 +55,7 @@ final class PacketReconstructorTests: XCTestCase {
         // [type=70, len=1, val=50] [type=2, len=1, val=3]
         // Message: [0x13] [0x00] [70, 1, 50, 2, 1, 3] → length = 8
         let packet = Data([0x08, 0x13, 0x00, 70, 0x01, 50, 2, 0x01, 3])
-        let result = reconstructor.processPacket(packet, peripheralId: "p1")
+        let result = reconstructor.processPacket(packet, peripheralId: "p1", channelId: "chQuery")
 
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.queryID, 0x13)
@@ -70,7 +70,7 @@ final class PacketReconstructorTests: XCTestCase {
         // Header byte 0 = 0b001_00000 = 0x20, byte 1 = 0x05
         // Message: [0x13] [0x00] [70, 1, 85]
         let packet = Data([0x20, 0x05, 0x13, 0x00, 70, 0x01, 0x55])
-        let result = reconstructor.processPacket(packet, peripheralId: "p1")
+        let result = reconstructor.processPacket(packet, peripheralId: "p1", channelId: "chQuery")
 
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.queryID, 0x13)
@@ -86,7 +86,7 @@ final class PacketReconstructorTests: XCTestCase {
         let tlvChunk1 = Data(repeating: 0xAA, count: 16) // 16 bytes of TLV in first packet
         firstPacket.append(tlvChunk1)
 
-        let result1 = reconstructor.processPacket(firstPacket, peripheralId: "p1")
+        let result1 = reconstructor.processPacket(firstPacket, peripheralId: "p1", channelId: "chQuery")
         XCTAssertNil(result1, "First packet should not complete the message (16 of 23 TLV bytes)")
 
         // Continuation packet: header 0x80 (bit7=1, counter=0), then 7 remaining TLV bytes
@@ -94,7 +94,7 @@ final class PacketReconstructorTests: XCTestCase {
         let tlvChunk2 = Data(repeating: 0xBB, count: 7)
         contPacket.append(tlvChunk2)
 
-        let result2 = reconstructor.processPacket(contPacket, peripheralId: "p1")
+        let result2 = reconstructor.processPacket(contPacket, peripheralId: "p1", channelId: "chQuery")
         XCTAssertNotNil(result2, "Second packet should complete the message")
         XCTAssertEqual(result2?.queryID, 0x13)
         XCTAssertEqual(result2?.data.count, 23) // 25 - 2 (queryID + status)
@@ -114,10 +114,10 @@ final class PacketReconstructorTests: XCTestCase {
         var pkt3 = Data([0x81])
         pkt3.append(Data(repeating: 0x03, count: 3))
 
-        XCTAssertNil(reconstructor.processPacket(pkt1, peripheralId: "p1"))
-        XCTAssertNil(reconstructor.processPacket(pkt2, peripheralId: "p1"))
+        XCTAssertNil(reconstructor.processPacket(pkt1, peripheralId: "p1", channelId: "chQuery"))
+        XCTAssertNil(reconstructor.processPacket(pkt2, peripheralId: "p1", channelId: "chQuery"))
 
-        let result = reconstructor.processPacket(pkt3, peripheralId: "p1")
+        let result = reconstructor.processPacket(pkt3, peripheralId: "p1", channelId: "chQuery")
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.queryID, 0x12)
         XCTAssertEqual(result?.data.count, 38) // 40 - 2
@@ -129,7 +129,7 @@ final class PacketReconstructorTests: XCTestCase {
         // Header: bits 7-5 = 010 → 0b010_00000 = 0x40, then 2-byte length
         // Message length = 5
         let packet = Data([0x40, 0x00, 0x05, 0x13, 0x00, 70, 0x01, 0x55])
-        let result = reconstructor.processPacket(packet, peripheralId: "p1")
+        let result = reconstructor.processPacket(packet, peripheralId: "p1", channelId: "chQuery")
 
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.queryID, 0x13)
@@ -141,7 +141,7 @@ final class PacketReconstructorTests: XCTestCase {
     func testContinuationWithNoBuffer() {
         // Continuation packet with no prior start packet should be dropped
         let contPacket = Data([0x80, 0x01, 0x02, 0x03])
-        let result = reconstructor.processPacket(contPacket, peripheralId: "p1")
+        let result = reconstructor.processPacket(contPacket, peripheralId: "p1", channelId: "chQuery")
         XCTAssertNil(result)
     }
 
@@ -150,7 +150,7 @@ final class PacketReconstructorTests: XCTestCase {
         var pkt1 = Data([0x20, 200, 0x13, 0x00]) // Extended 13-bit, length = 200
         pkt1.append(Data(repeating: 0xAA, count: 16))
 
-        XCTAssertNil(reconstructor.processPacket(pkt1, peripheralId: "p1"))
+        XCTAssertNil(reconstructor.processPacket(pkt1, peripheralId: "p1", channelId: "chQuery"))
 
         // Send continuations until we reach 198 TLV bytes (200 - 2)
         var accumulated = 16
@@ -160,7 +160,7 @@ final class PacketReconstructorTests: XCTestCase {
             let chunkSize = min(19, remaining)
             var pkt = Data([0x80 | (counter & 0x0F)])
             pkt.append(Data(repeating: UInt8(counter), count: chunkSize))
-            let result = reconstructor.processPacket(pkt, peripheralId: "p1")
+            let result = reconstructor.processPacket(pkt, peripheralId: "p1", channelId: "chQuery")
 
             accumulated += chunkSize
             if accumulated >= 198 {
@@ -183,20 +183,20 @@ final class PacketReconstructorTests: XCTestCase {
         var pkt1b = Data([0x20, 25, 0x12, 0x00])
         pkt1b.append(Data(repeating: 0xBB, count: 16))
 
-        XCTAssertNil(reconstructor.processPacket(pkt1a, peripheralId: "p1"))
-        XCTAssertNil(reconstructor.processPacket(pkt1b, peripheralId: "p2"))
+        XCTAssertNil(reconstructor.processPacket(pkt1a, peripheralId: "p1", channelId: "chQuery"))
+        XCTAssertNil(reconstructor.processPacket(pkt1b, peripheralId: "p2", channelId: "chQuery"))
 
         // Continuation for p2
         var cont2 = Data([0x80])
         cont2.append(Data(repeating: 0xCC, count: 7))
-        let result2 = reconstructor.processPacket(cont2, peripheralId: "p2")
+        let result2 = reconstructor.processPacket(cont2, peripheralId: "p2", channelId: "chQuery")
         XCTAssertNotNil(result2)
         XCTAssertEqual(result2?.queryID, 0x12)
 
         // Continuation for p1
         var cont1 = Data([0x80])
         cont1.append(Data(repeating: 0xDD, count: 7))
-        let result1 = reconstructor.processPacket(cont1, peripheralId: "p1")
+        let result1 = reconstructor.processPacket(cont1, peripheralId: "p1", channelId: "chQuery")
         XCTAssertNotNil(result1)
         XCTAssertEqual(result1?.queryID, 0x13)
     }
@@ -206,7 +206,7 @@ final class PacketReconstructorTests: XCTestCase {
     func testClearBuffers() {
         var pkt = Data([0x20, 25, 0x13, 0x00])
         pkt.append(Data(repeating: 0xAA, count: 16))
-        XCTAssertNil(reconstructor.processPacket(pkt, peripheralId: "p1"))
+        XCTAssertNil(reconstructor.processPacket(pkt, peripheralId: "p1", channelId: "chQuery"))
 
         let state1 = reconstructor.getBufferState()
         XCTAssertFalse(state1.buffers.isEmpty)
@@ -222,8 +222,8 @@ final class PacketReconstructorTests: XCTestCase {
         var pkt2 = Data([0x20, 25, 0x12, 0x00])
         pkt2.append(Data(repeating: 0xBB, count: 16))
 
-        XCTAssertNil(reconstructor.processPacket(pkt1, peripheralId: "p1"))
-        XCTAssertNil(reconstructor.processPacket(pkt2, peripheralId: "p2"))
+        XCTAssertNil(reconstructor.processPacket(pkt1, peripheralId: "p1", channelId: "chQuery"))
+        XCTAssertNil(reconstructor.processPacket(pkt2, peripheralId: "p2", channelId: "chQuery"))
 
         reconstructor.clearBuffers(for: "p1")
         let state = reconstructor.getBufferState()
@@ -234,16 +234,104 @@ final class PacketReconstructorTests: XCTestCase {
     func testTimeout() {
         var pkt = Data([0x20, 25, 0x13, 0x00])
         pkt.append(Data(repeating: 0xAA, count: 16))
-        XCTAssertNil(reconstructor.processPacket(pkt, peripheralId: "p1"))
+        XCTAssertNil(reconstructor.processPacket(pkt, peripheralId: "p1", channelId: "chQuery"))
 
-        // With a 0-second timeout, the buffer should be returned immediately
-        let results = reconstructor.checkTimeouts(timeoutInterval: 0)
-        XCTAssertEqual(results.count, 1)
-        XCTAssertEqual(results[0].queryID, 0x13)
+        // A timed-out buffer is truncated, so it is discarded rather than
+        // force-completed and parsed as if it were a whole message.
+        let discarded = reconstructor.checkTimeouts(timeoutInterval: 0)
+        XCTAssertEqual(discarded, 1)
 
         // Buffer should be cleared after timeout
         let state = reconstructor.getBufferState()
         XCTAssertTrue(state.buffers.isEmpty)
+    }
+
+    // MARK: - Sequence Validation
+
+    func testSequenceGapDiscardsMessage() {
+        var pkt1 = Data([0x20, 40, 0x12, 0x00])
+        pkt1.append(Data(repeating: 0x01, count: 16))
+        XCTAssertNil(reconstructor.processPacket(pkt1, peripheralId: "p1", channelId: "chQuery"))
+
+        // Counter 0 arrives as expected.
+        var pkt2 = Data([0x80])
+        pkt2.append(Data(repeating: 0x02, count: 19))
+        XCTAssertNil(reconstructor.processPacket(pkt2, peripheralId: "p1", channelId: "chQuery"))
+
+        // Counter 2 arrives -- counter 1 was dropped. The accumulated bytes can no
+        // longer be trusted, so the message in progress must be discarded rather
+        // than completed with a byte-shifted payload.
+        var pkt3 = Data([0x82])
+        pkt3.append(Data(repeating: 0x03, count: 3))
+        XCTAssertNil(reconstructor.processPacket(pkt3, peripheralId: "p1", channelId: "chQuery"))
+
+        let state = reconstructor.getBufferState()
+        XCTAssertTrue(state.buffers.isEmpty, "Buffer should be discarded after a sequence gap")
+    }
+
+    func testDuplicateSequenceDiscardsMessage() {
+        var pkt1 = Data([0x20, 40, 0x12, 0x00])
+        pkt1.append(Data(repeating: 0x01, count: 16))
+        XCTAssertNil(reconstructor.processPacket(pkt1, peripheralId: "p1", channelId: "chQuery"))
+
+        var pkt2 = Data([0x80])
+        pkt2.append(Data(repeating: 0x02, count: 19))
+        XCTAssertNil(reconstructor.processPacket(pkt2, peripheralId: "p1", channelId: "chQuery"))
+
+        // Counter 0 again -- a duplicate.
+        XCTAssertNil(reconstructor.processPacket(pkt2, peripheralId: "p1", channelId: "chQuery"))
+
+        let state = reconstructor.getBufferState()
+        XCTAssertTrue(state.buffers.isEmpty, "Buffer should be discarded on a duplicate counter")
+    }
+
+    // MARK: - Per-Characteristic Isolation
+
+    func testConcurrentCharacteristicsDoNotCrossContaminate() {
+        // Query responses (0x0077) and settings responses (0x0075) stream
+        // independently. A continuation on one characteristic must never be
+        // appended to the message accumulating on the other.
+        var query = Data([0x20, 25, 0x13, 0x00])
+        query.append(Data(repeating: 0xAA, count: 16))
+        var settings = Data([0x20, 25, 0x12, 0x00])
+        settings.append(Data(repeating: 0xBB, count: 16))
+
+        XCTAssertNil(reconstructor.processPacket(query, peripheralId: "p1", channelId: "chQuery"))
+        XCTAssertNil(reconstructor.processPacket(settings, peripheralId: "p1", channelId: "chSettings"))
+
+        // Complete the settings message. Under the old recency-based routing this
+        // continuation would have landed in whichever buffer was touched last.
+        var contSettings = Data([0x80])
+        contSettings.append(Data(repeating: 0xCC, count: 7))
+        let settingsResult = reconstructor.processPacket(contSettings, peripheralId: "p1", channelId: "chSettings")
+        XCTAssertEqual(settingsResult?.queryID, 0x12)
+        XCTAssertEqual(settingsResult?.data.suffix(7), Data(repeating: 0xCC, count: 7))
+
+        // The query message must still be intact and uncontaminated.
+        var contQuery = Data([0x80])
+        contQuery.append(Data(repeating: 0xDD, count: 7))
+        let queryResult = reconstructor.processPacket(contQuery, peripheralId: "p1", channelId: "chQuery")
+        XCTAssertEqual(queryResult?.queryID, 0x13)
+        XCTAssertEqual(queryResult?.data, Data(repeating: 0xAA, count: 16) + Data(repeating: 0xDD, count: 7))
+    }
+
+    func testStartPacketSupersedesIncompleteMessage() {
+        var pkt1 = Data([0x20, 25, 0x13, 0x00])
+        pkt1.append(Data(repeating: 0xAA, count: 16))
+        XCTAssertNil(reconstructor.processPacket(pkt1, peripheralId: "p1", channelId: "chQuery"))
+
+        // A new start packet on the same characteristic replaces the partial one.
+        var pkt2 = Data([0x20, 25, 0x12, 0x00])
+        pkt2.append(Data(repeating: 0xBB, count: 16))
+        XCTAssertNil(reconstructor.processPacket(pkt2, peripheralId: "p1", channelId: "chQuery"))
+
+        var cont = Data([0x80])
+        cont.append(Data(repeating: 0xCC, count: 7))
+        let result = reconstructor.processPacket(cont, peripheralId: "p1", channelId: "chQuery")
+
+        // Must complete the NEW message, with no bytes from the superseded one.
+        XCTAssertEqual(result?.queryID, 0x12)
+        XCTAssertEqual(result?.data, Data(repeating: 0xBB, count: 16) + Data(repeating: 0xCC, count: 7))
     }
 }
 
@@ -573,7 +661,7 @@ final class BLEParserPipelineTests: XCTestCase {
     }
 
     func testEmptyData() {
-        let responses = parser.processPacket(Data(), peripheralId: "p1")
+        let responses = parser.processPacket(Data(), peripheralId: "p1", channelId: "chQuery")
         XCTAssertTrue(responses.isEmpty)
     }
 
@@ -582,7 +670,7 @@ final class BLEParserPipelineTests: XCTestCase {
         // Header: length = 5 → 0x05
         // Message: [0x13] [0x00] [70, 1, 85]
         let packet = Data([0x05, 0x13, 0x00, 70, 0x01, 85])
-        let responses: [ResponseType] = parser.processPacket(packet, peripheralId: "p1")
+        let responses: [ResponseType] = parser.processPacket(packet, peripheralId: "p1", channelId: "chQuery")
 
         XCTAssertEqual(responses.count, 1)
         if case .batteryPercentage(let pct) = responses[0] {
@@ -597,7 +685,7 @@ final class BLEParserPipelineTests: XCTestCase {
         // TLV: [1,1,1] [2,1,3] [6,1,0] = 9 bytes
         // Message: [0x13] [0x00] + 9 = 11 bytes
         let packet = Data([11, 0x13, 0x00, 1, 1, 1, 2, 1, 3, 6, 1, 0])
-        let responses = parser.processPacket(packet, peripheralId: "p1")
+        let responses = parser.processPacket(packet, peripheralId: "p1", channelId: "chQuery")
 
         XCTAssertEqual(responses.count, 3)
     }
@@ -628,14 +716,14 @@ final class BLEParserPipelineTests: XCTestCase {
         let chunk1Size = min(tlvData.count, 16) // 20 - 4 header bytes
         pkt1.append(tlvData.subdata(in: 0..<chunk1Size))
 
-        let responses1 = parser.processPacket(pkt1, peripheralId: "p1")
+        let responses1 = parser.processPacket(pkt1, peripheralId: "p1", channelId: "chQuery")
         XCTAssertTrue(responses1.isEmpty, "First packet should not produce responses yet")
 
         // Continuation packet with remaining TLV data
         var pkt2 = Data([0x80])
         pkt2.append(tlvData.subdata(in: chunk1Size..<tlvData.count))
 
-        let responses2 = parser.processPacket(pkt2, peripheralId: "p1")
+        let responses2 = parser.processPacket(pkt2, peripheralId: "p1", channelId: "chQuery")
         XCTAssertEqual(responses2.count, 7, "Should parse all 7 settings")
     }
 
