@@ -745,11 +745,16 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let gopro = GoPro(peripheral: peripheral)
         guard connectedGoPros[peripheral.identifier] == nil else { return }
 
-        // Don't add sleeping devices to discovered list
-        guard !deviceStateManager.isDeviceSleeping(peripheral.identifier) else {
-            ErrorHandler.debug("Ignoring sleeping device: \(peripheral.name ?? peripheral.identifier.uuidString)")
-            return
-        }
+        // Advertisements are always honoured, including from a camera we believe
+        // is asleep. A camera still shutting down and a camera that just woke up
+        // emit identical advertisements, so no rule based on advertisements and
+        // elapsed time can tell them apart — suppressing discovery either undoes
+        // the user's sleep command or hides the camera permanently, since
+        // connectToGoPro requires it to be in discoveredGoPros.
+        //
+        // The sleep flag instead suppresses only AUTOMATIC reconnection, which is
+        // the behaviour that actually needed guarding. The camera stays visible
+        // and the user can always tap to connect.
 
         let peripheralId = peripheral.identifier
         let peripheralName = peripheral.name
@@ -1899,6 +1904,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         return deviceStateManager.isDeviceSleeping(uuid)
     }
 
+    /// Record whether a device is sleeping
+    func setDeviceSleeping(_ uuid: UUID, isSleeping: Bool) {
+        deviceStateManager.setDeviceSleeping(uuid, isSleeping: isSleeping)
+    }
+
     // MARK: - Query Timer Management
 
     func startDeviceQueryTimer() {
@@ -2220,9 +2230,12 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Find cameras that should be connected but aren't
         let stragglers = targetConnectedCameras.filter { cameraId in
             // Camera should be connected if it's discovered but not connected and not currently connecting
+            // A camera the user asked to sleep is excluded: it stays visible and
+            // manually connectable, but must not be reconnected automatically.
             return discoveredGoPros[cameraId] != nil &&
                    connectedGoPros[cameraId] == nil &&
-                   connectingGoPros[cameraId] == nil
+                   connectingGoPros[cameraId] == nil &&
+                   !deviceStateManager.isDeviceSleeping(cameraId)
         }
 
         if !stragglers.isEmpty {
@@ -2265,6 +2278,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     /// Schedule auto-reconnect for a camera that dropped unexpectedly
     func scheduleReconnectIfNeeded(for uuid: UUID) {
         guard targetConnectedCameras.contains(uuid) else { return }
+        // Never auto-reconnect a camera the user asked to sleep.
+        guard !deviceStateManager.isDeviceSleeping(uuid) else {
+            ErrorHandler.debug("Not scheduling reconnect - camera was put to sleep")
+            return
+        }
 
         let cameraName = CameraIdentityManager.shared.getDisplayName(for: uuid)
         ErrorHandler.info("Camera \(cameraName) dropped - scheduling reconnect")

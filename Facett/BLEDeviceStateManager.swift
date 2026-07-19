@@ -36,6 +36,11 @@ class BLEDeviceStateManager: ObservableObject {
     @Published var connectingDevices: [UUID: DeviceState] = [:]
     @Published var connectionRetryStatus: [UUID: ConnectionRetryStatus] = [:]
 
+    /// Devices deliberately put to sleep, and when the sleep command was sent.
+    /// Kept independent of the device dictionaries above, which are never populated.
+    @Published private(set) var sleepingDevices: [UUID: Date] = [:]
+    @Published private(set) var poweringDownDevices: Set<UUID> = []
+
     private var connectionRetryCount: [UUID: Int] = [:]
     private var connectionRetryTimers: [UUID: Timer] = [:]
     private var connectionAttemptTimers: [UUID: Timer] = [:]
@@ -171,15 +176,45 @@ class BLEDeviceStateManager: ObservableObject {
     }
 
     /// Set device sleeping state
+    ///
+    /// Sleep state is held in `sleepingDevices` rather than on `DeviceState`.
+    /// The device dictionaries are only ever populated by `addDiscoveredDevice`,
+    /// which nothing calls, so both are permanently empty — writing sleep state
+    /// through an optional chain into them made every setter a silent no-op and
+    /// made `isDeviceSleeping` always return false.
     func setDeviceSleeping(_ uuid: UUID, isSleeping: Bool) {
+        if isSleeping {
+            sleepingDevices[uuid] = Date()
+        } else {
+            sleepingDevices.removeValue(forKey: uuid)
+        }
         discoveredDevices[uuid]?.isSleeping = isSleeping
         connectedDevices[uuid]?.isSleeping = isSleeping
     }
 
     /// Set device powering down state
     func setDevicePoweringDown(_ uuid: UUID, isPoweringDown: Bool) {
+        if isPoweringDown {
+            poweringDownDevices.insert(uuid)
+        } else {
+            poweringDownDevices.remove(uuid)
+        }
         discoveredDevices[uuid]?.isPoweringDown = isPoweringDown
         connectedDevices[uuid]?.isPoweringDown = isPoweringDown
+    }
+
+    /// Whether automatic reconnection to this device is suppressed.
+    ///
+    /// This is the only thing the sleep flag gates. An earlier design also
+    /// suppressed *discovery* of a sleeping camera, which cannot be made correct:
+    /// a camera still shutting down and a camera that just woke up emit identical
+    /// advertisements, so any rule based on advertisements plus elapsed time
+    /// either undoes the user's sleep command (if it stops suppressing too early)
+    /// or hides the camera forever (if it never stops). Suppressing only automatic
+    /// reconnection avoids the ambiguity entirely: the camera stays visible and
+    /// manually connectable, and the app simply never reconnects on its own.
+    func isAutoReconnectSuppressed(for uuid: UUID) -> Bool {
+        return isDeviceSleeping(uuid)
     }
 
     /// Get device state
@@ -204,12 +239,12 @@ class BLEDeviceStateManager: ObservableObject {
 
     /// Check if device is sleeping
     func isDeviceSleeping(_ uuid: UUID) -> Bool {
-        return discoveredDevices[uuid]?.isSleeping ?? false
+        return sleepingDevices[uuid] != nil
     }
 
     /// Check if device is powering down
     func isDevicePoweringDown(_ uuid: UUID) -> Bool {
-        return discoveredDevices[uuid]?.isPoweringDown ?? false
+        return poweringDownDevices.contains(uuid)
     }
 
     /// Remove device from all collections
@@ -217,6 +252,8 @@ class BLEDeviceStateManager: ObservableObject {
         discoveredDevices.removeValue(forKey: uuid)
         connectedDevices.removeValue(forKey: uuid)
         connectingDevices.removeValue(forKey: uuid)
+        sleepingDevices.removeValue(forKey: uuid)
+        poweringDownDevices.remove(uuid)
         connectionRetryStatus.removeValue(forKey: uuid)
         connectionRetryCount.removeValue(forKey: uuid)
 
@@ -241,6 +278,8 @@ class BLEDeviceStateManager: ObservableObject {
         discoveredDevices.removeAll()
         connectedDevices.removeAll()
         connectingDevices.removeAll()
+        sleepingDevices.removeAll()
+        poweringDownDevices.removeAll()
         connectionRetryStatus.removeAll()
         connectionRetryCount.removeAll()
         connectionRetryTimers.removeAll()
