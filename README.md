@@ -46,6 +46,13 @@ xcodebuild test \
     -quiet
 ```
 
+> **Note:** `-destination` names a specific simulator. With no `OS=`, xcodebuild
+> defaults to the newest installed runtime, so a hardcoded name like `iPhone 16`
+> fails once that device no longer exists for the latest iOS. Run
+> `xcodebuild -project Facett.xcodeproj -scheme Facett -showdestinations` and pick
+> one that is listed, or pin the runtime, e.g. `name=iPhone 16,OS=18.2`.
+
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full list of test suites.
 
 ## Documentation
