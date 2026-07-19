@@ -1312,6 +1312,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         // Convert the response to a byte array for logging
         let byteArray = response.map { String(format: "0x%02X", $0) }.joined(separator: " ")
 
+        // Byte 2 is the status byte of [header][settingID][status]. A short or
+        // malformed response would otherwise trap here — unlike handleCommandResponse,
+        // which length-checks before indexing.
+        guard response.count >= 3 else {
+            ErrorHandler.bleError("Settings response too short to verify", context: [
+                "peripheral": peripheral.name ?? "Unknown",
+                "length": String(response.count),
+                "bytes": byteArray
+            ])
+            return
+        }
+
         if response[2] == 0 {
             ErrorHandler.debug("\(peripheral.name ?? "Device") settings applied successfully. Response bytes: \(byteArray)")
         } else {
