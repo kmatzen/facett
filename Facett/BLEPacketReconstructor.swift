@@ -47,7 +47,7 @@ class BLEPacketReconstructor {
     ///   - channelId: the notify characteristic this packet arrived on. Packets
     ///     from different characteristics must not share an accumulation buffer.
     func processPacket(_ data: Data, peripheralId: String, channelId: String) -> (data: Data, queryID: UInt8)? {
-        return processPacketLocked(data, peripheralId: peripheralId, channelId: channelId)
+        return stateQueue.sync { processPacketLocked(data, peripheralId: peripheralId, channelId: channelId) }
     }
 
     private func processPacketLocked(_ data: Data, peripheralId: String, channelId: String) -> (data: Data, queryID: UInt8)? {
@@ -77,7 +77,7 @@ class BLEPacketReconstructor {
     }
 
     func clearBuffers() {
-        clearBuffersLocked()
+        stateQueue.sync { clearBuffersLocked() }
     }
 
     private func clearBuffersLocked() {
@@ -89,7 +89,7 @@ class BLEPacketReconstructor {
     }
 
     func clearBuffers(for peripheralId: String) {
-        clearBuffersLocked(for: peripheralId)
+        stateQueue.sync { clearBuffersLocked(for: peripheralId) }
     }
 
     private func clearBuffersLocked(for peripheralId: String) {
@@ -104,7 +104,7 @@ class BLEPacketReconstructor {
     }
 
     func getBufferState() -> (buffers: [String: Data], expectedLengths: [String: Int]) {
-        return (continuationBuffer, expectedMessageLength)
+        return stateQueue.sync { (continuationBuffer, expectedMessageLength) }
     }
 
     /// Discard buffers that have gone quiet, and report how many were dropped.
@@ -116,7 +116,7 @@ class BLEPacketReconstructor {
     /// data to every connected camera. Truncated data is now dropped outright.
     @discardableResult
     func checkTimeouts(timeoutInterval: TimeInterval = 5.0) -> Int {
-        return checkTimeoutsLocked(timeoutInterval: timeoutInterval)
+        return stateQueue.sync { checkTimeoutsLocked(timeoutInterval: timeoutInterval) }
     }
 
     private func checkTimeoutsLocked(timeoutInterval: TimeInterval) -> Int {
