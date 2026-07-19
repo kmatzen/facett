@@ -358,3 +358,92 @@ class StateMachineTests: XCTestCase {
         return BLEManager()
     }
 }
+
+// MARK: - Device Sleep State
+
+final class DeviceSleepStateTests: XCTestCase {
+
+    var stateManager: BLEDeviceStateManager!
+
+    override func setUp() {
+        super.setUp()
+        stateManager = BLEDeviceStateManager()
+    }
+
+    override func tearDown() {
+        stateManager = nil
+        super.tearDown()
+    }
+
+    func testSleepStateIsRecorded() {
+        let cam = UUID()
+        XCTAssertFalse(stateManager.isDeviceSleeping(cam))
+
+        stateManager.setDeviceSleeping(cam, isSleeping: true)
+
+        // This previously wrote through an optional chain into a dictionary that
+        // nothing ever populates, so the setter was a silent no-op and the getter
+        // always returned false.
+        XCTAssertTrue(stateManager.isDeviceSleeping(cam))
+    }
+
+    func testAutoReconnectSuppressedWhileSleeping() {
+        let cam = UUID()
+        XCTAssertFalse(stateManager.isAutoReconnectSuppressed(for: cam))
+
+        stateManager.setDeviceSleeping(cam, isSleeping: true)
+
+        // The sleep flag gates automatic reconnection and nothing else. It must
+        // not gate discovery: a camera still shutting down and one that just woke
+        // emit identical advertisements, so suppressing discovery either undoes
+        // the sleep command or hides the camera permanently.
+        XCTAssertTrue(stateManager.isAutoReconnectSuppressed(for: cam))
+    }
+
+    func testAutoReconnectResumesAfterWake() {
+        let cam = UUID()
+        stateManager.setDeviceSleeping(cam, isSleeping: true)
+        stateManager.setDeviceSleeping(cam, isSleeping: false)
+
+        XCTAssertFalse(stateManager.isAutoReconnectSuppressed(for: cam))
+    }
+
+    func testExplicitWakeClearsSleepState() {
+        let cam = UUID()
+        stateManager.setDeviceSleeping(cam, isSleeping: true)
+        stateManager.setDeviceSleeping(cam, isSleeping: false)
+        XCTAssertFalse(stateManager.isDeviceSleeping(cam))
+    }
+
+    func testSleepStateIsPerDevice() {
+        let sleeping = UUID()
+        let awake = UUID()
+        stateManager.setDeviceSleeping(sleeping, isSleeping: true)
+
+        XCTAssertFalse(stateManager.isDeviceSleeping(awake))
+        XCTAssertFalse(stateManager.isAutoReconnectSuppressed(for: awake))
+    }
+
+    func testPowerDownStateIsRecorded() {
+        let cam = UUID()
+        XCTAssertFalse(stateManager.isDevicePoweringDown(cam))
+
+        stateManager.setDevicePoweringDown(cam, isPoweringDown: true)
+        XCTAssertTrue(stateManager.isDevicePoweringDown(cam))
+
+        stateManager.setDevicePoweringDown(cam, isPoweringDown: false)
+        XCTAssertFalse(stateManager.isDevicePoweringDown(cam))
+    }
+
+    func testCleanupClearsSleepState() {
+        let cam = UUID()
+
+        stateManager.setDeviceSleeping(cam, isSleeping: true)
+        stateManager.removeDevice(cam)
+        XCTAssertFalse(stateManager.isDeviceSleeping(cam))
+
+        stateManager.setDeviceSleeping(cam, isSleeping: true)
+        stateManager.clearAllDevices()
+        XCTAssertFalse(stateManager.isDeviceSleeping(cam))
+    }
+}
