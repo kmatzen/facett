@@ -309,40 +309,60 @@ class CameraGroupManager: ObservableObject {
     }
 
     func getCameraStatus(_ camera: GoPro, bleManager: BLEManager) -> CameraStatus {
+        return CameraGroupManager.cameraStatus(
+            status: camera.status,
+            hasReceivedInitialStatus: camera.hasReceivedInitialStatus,
+            hasModeMismatch: hasModeMismatch(camera),
+            hasSettingsMismatch: hasSettingsMismatch(camera, bleManager: bleManager)
+        )
+    }
+
+    /// The status-priority decision, as a pure function of the inputs.
+    ///
+    /// Extracted so tests can exercise the real ordering. A test-local copy of this
+    /// logic had already drifted from production — it omitted the mode- and
+    /// settings-mismatch checks, so it reported `.ready` for inputs that really
+    /// produce `.modeMismatch` or `.settingsMismatch`.
+    static func cameraStatus(
+        status: CameraStatusData,
+        hasReceivedInitialStatus: Bool,
+        hasModeMismatch: Bool,
+        hasSettingsMismatch: Bool
+    ) -> CameraStatus {
         // If camera hasn't received initial status yet, show initializing
-        if !camera.hasReceivedInitialStatus {
+        if !hasReceivedInitialStatus {
             return .initializing
         }
 
         // Check for critical errors first
-        if camera.status.isOverheating == true {
+        if status.isOverheating == true {
             return .overheating
         }
 
-        if camera.status.sdCardRemaining == nil || camera.status.sdCardRemaining == 0 {
+        if status.sdCardRemaining == nil || status.sdCardRemaining == 0 {
             return .noSDCard
         }
 
-        if let batteryLevel = camera.status.batteryLevel, batteryLevel <= 1 {
+        if let batteryLevel = status.batteryLevel, batteryLevel <= 1 {
             return .lowBattery
         }
 
-        if camera.status.isEncoding == true {
+        if status.isEncoding == true {
             return .recording
         }
 
         // Check for mode mismatch first (this is more critical than settings mismatch)
-        if hasModeMismatch(camera) {
+        if hasModeMismatch {
             return .modeMismatch
         }
 
         // Check if settings match defaults
-        if hasSettingsMismatch(camera, bleManager: bleManager) {
+        if hasSettingsMismatch {
             return .settingsMismatch
         }
 
         // Check if camera is ready
-        if camera.status.isReady == true {
+        if status.isReady == true {
             return .ready
         }
 

@@ -12,10 +12,15 @@ struct GoProCommands {
     // Format: [header (length)] [0x13] [statusID1] [statusID2] ...
     struct Status {
         static let status1: [UInt8] = [19, 0x13, 1, 2, 3, 6, 8, 10, 13, 31, 68, 70, 82, 85, 111, 114, 115, 116, 54, 113]
-        static let status2: [UInt8] = [4, 0x13, 78, 63, 109, 104]
+        // Header byte is the payload length: the query ID plus the status IDs.
+        // status2 declared 4 for a 5-byte payload, so the camera parsed only the
+        // first three status IDs and 104 (linuxCoreActive) was never requested.
+        static let status2: [UInt8] = [5, 0x13, 78, 63, 109, 104]
 
-        static let wifiCredentials: [UInt8] = [19, 0x13, 29, 30, 69, 71, 72]
-        static let wifiCredentialsAlt: [UInt8] = [19, 0x13, 29, 30, 69, 73, 74, 75]
+        // These declared 19 for 6- and 7-byte payloads, so the camera waited for
+        // continuation packets that never arrived and the query stalled.
+        static let wifiCredentials: [UInt8] = [6, 0x13, 29, 30, 69, 71, 72]
+        static let wifiCredentialsAlt: [UInt8] = [7, 0x13, 29, 30, 69, 73, 74, 75]
 
         // Protobuf: Feature 0xF1, Action 0x6C (undocumented)
         static let getWiFiConfig: [UInt8] = [4, 0xF1, 0x6C, 0x08, 0x00]
@@ -26,7 +31,8 @@ struct GoProCommands {
     // Format: [header (length)] [0x12] [settingID1] [settingID2] ...
     struct Settings {
         static let settings1: [UInt8] = [19, 0x12, 96, 102, 54, 85, 2, 3, 59, 83, 121, 134, 135, 162, 173, 149, 118, 124, 139, 144]
-        static let settings2: [UInt8] = [15, 0x12, 145, 13, 91, 115, 116, 167, 84, 86, 87, 88, 114, 79, 96]
+        // Over-declared by one, which stalled the query waiting for a byte that never came.
+        static let settings2: [UInt8] = [14, 0x12, 145, 13, 91, 115, 116, 167, 84, 86, 87, 88, 114, 79, 96]
         static let settings3: [UInt8] = [18, 0x12, 48, 103, 104, 105, 106, 112, 154, 158, 159, 161, 60, 61, 62, 64, 65, 66, 67]
     }
 
