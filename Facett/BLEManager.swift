@@ -246,6 +246,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
     /// Send a command directly (bypasses queue, used by queue processor)
     private func sendCommandDirectly(_ command: [UInt8], to uuid: UUID, commandName: String, requiresControl: Bool = false) {
+        assertOnStateQueue()
         guard let gopro = connectedGoPros[uuid] else {
             log("Camera not found for direct command: \(commandName)")
             return
@@ -693,6 +694,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     func setDateTime(for uuid: UUID) {
+        // Reached from BLEResponseHandler on the CoreBluetooth queue as well as
+        // from configureAllDevices, so the guard and the status write below have
+        // to share one block on the state queue.
+        onStateQueue { [weak self] in self?.setDateTimeOnStateQueue(for: uuid) }
+    }
+
+    private func setDateTimeOnStateQueue(for uuid: UUID) {
+        assertOnStateQueue()
         guard connectedGoPros[uuid] != nil else { return }
 
         let now = Date()
@@ -720,9 +729,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         sendCommand(dateTimeCommand, to: uuid, commandName: "set date time")
 
-        DispatchQueue.main.async { [weak self] in
-            self?.connectedGoPros[uuid]?.status.lastTimeSyncDate = now
-        }
+        connectedGoPros[uuid]?.status.lastTimeSyncDate = now
 
         ErrorHandler.debug("Sent Set Date Time command to \(CameraIdentityManager.shared.getDisplayName(for: uuid)). Date: \(year)-\(month)-\(day) \(hour):\(minute):\(second)")
     }
@@ -743,7 +750,6 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         rssi RSSI: NSNumber
     ) {
         let gopro = GoPro(peripheral: peripheral)
-        guard connectedGoPros[peripheral.identifier] == nil else { return }
 
         // Advertisements are always honoured, including from a camera we believe
         // is asleep. A camera still shutting down and a camera that just woke up
@@ -759,7 +765,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let peripheralId = peripheral.identifier
         let peripheralName = peripheral.name
         let rssi = RSSI
-        DispatchQueue.main.async {
+
+        // The already-connected check belongs inside the block with the write it
+        // guards. Reading it here, on the CoreBluetooth queue, both races the
+        // dictionary and lets the answer go stale before the insert happens.
+        onStateQueue { [weak self] in
+            guard let self = self else { return }
+            guard self.connectedGoPros[peripheralId] == nil else { return }
+
             let isNew = self.discoveredGoPros[peripheralId] == nil
             self.addDevice(to: \.discoveredGoPros, gopro: gopro)
             if isNew {
@@ -790,25 +803,34 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         let errorDescription = error?.localizedDescription ?? "unknown error"
         log("Failed to connect to \(cameraName): \(errorDescription)")
 
-        // Log error for crash reporting with enhanced context
-        CrashReporter.shared.logError(
-            "BLE Connection Failed",
-            error: error,
-            context: [
-                "peripheral_name": peripheral.name ?? "Unknown",
-                "peripheral_id": peripheral.identifier.uuidString,
-                "peripheral_state": peripheralStateString(peripheral.state),
-                "error_description": errorDescription,
-                "error_code": error?._code.description ?? "unknown",
-                "error_domain": error?._domain ?? "unknown"
-            ],
-            appStateContext: createAppStateContext()
-        )
-
         let uuid = peripheral.identifier
-        let currentRetryCount = connectionRetryCount[uuid] ?? 0
+        let crashContext: [String: String] = [
+            "peripheral_name": peripheral.name ?? "Unknown",
+            "peripheral_id": peripheral.identifier.uuidString,
+            "peripheral_state": peripheralStateString(peripheral.state),
+            "error_description": errorDescription,
+            "error_code": error?._code.description ?? "unknown",
+            "error_domain": error?._domain ?? "unknown"
+        ]
 
-        DispatchQueue.main.async {
+        onStateQueue { [weak self] in
+            guard let self = self else { return }
+
+            // Logged from here rather than the CoreBluetooth queue: the context
+            // counts connected and discovered cameras, which is a state read.
+            CrashReporter.shared.logError(
+                "BLE Connection Failed",
+                error: error,
+                context: crashContext,
+                appStateContext: self.createAppStateContext()
+            )
+
+            // Read the retry count here, on main, rather than snapshotting it on the
+            // CoreBluetooth queue. Two failures arriving close together would otherwise
+            // both observe the same value and both write count+1, so the counter would
+            // never advance and the camera would retry forever instead of being abandoned.
+            let currentRetryCount = self.connectionRetryCount[uuid] ?? 0
+
             if let gopro = self.connectingGoPros[uuid] {
                 // Check if we should retry
                 if currentRetryCount < self.maxRetryAttempts {
@@ -823,6 +845,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     }
 
                     // Schedule retry after exponential backoff delay
+                    self.connectionRetryTimers[uuid]?.invalidate()
                     self.connectionRetryTimers[uuid] = Timer.scheduledTimer(withTimeInterval: retryDelay, repeats: false) { [weak self] _ in
                         self?.retryConnection(for: uuid)
                     }
@@ -832,7 +855,9 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                     self.discoveredGoPros[uuid] = gopro // Move back to discovered list
                     self.connectingGoPros.removeValue(forKey: uuid) // Remove from connecting list
                     self.connectionRetryCount.removeValue(forKey: uuid)
+                    self.connectionRetryTimers[uuid]?.invalidate()
                     self.connectionRetryTimers.removeValue(forKey: uuid)
+                    self.connectionAttemptTimers[uuid]?.invalidate()
                     self.connectionAttemptTimers.removeValue(forKey: uuid)
                     self.camerasBeingConnectedFromGroup.remove(uuid)
 
@@ -913,24 +938,33 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         case Constants.UUIDs.wifiAPSSID:
             ErrorHandler.debug("Processing WiFi AP SSID response for \(peripheral.name ?? "a device")")
             wifiManager.handleWiFiSSIDResponse(data, for: peripheral) { [weak self] uuid, ssid in
-                if let gopro = self?.connectedGoPros[uuid] {
-                    self?.wifiManager.updateWiFiSSID(for: uuid, ssid: ssid, gopro: gopro)
+                // Delivered on the CoreBluetooth queue; the state read and the
+                // update it feeds must happen together on the state queue.
+                self?.onStateQueue {
+                    guard let self = self, let gopro = self.connectedGoPros[uuid] else { return }
+                    self.wifiManager.updateWiFiSSID(for: uuid, ssid: ssid, gopro: gopro)
                 }
             }
 
         case Constants.UUIDs.wifiAPPassword:
             ErrorHandler.debug("Processing WiFi AP Password response for \(peripheral.name ?? "a device")")
             wifiManager.handleWiFiPasswordResponse(data, for: peripheral) { [weak self] uuid, password in
-                if let gopro = self?.connectedGoPros[uuid] {
-                    self?.wifiManager.updateWiFiPassword(for: uuid, password: password, gopro: gopro)
+                // Delivered on the CoreBluetooth queue; the state read and the
+                // update it feeds must happen together on the state queue.
+                self?.onStateQueue {
+                    guard let self = self, let gopro = self.connectedGoPros[uuid] else { return }
+                    self.wifiManager.updateWiFiPassword(for: uuid, password: password, gopro: gopro)
                 }
             }
 
         case Constants.UUIDs.wifiAPState:
             ErrorHandler.debug("Processing WiFi AP State response for \(peripheral.name ?? "a device")")
             wifiManager.handleWiFiStateResponse(data, for: peripheral) { [weak self] uuid, state in
-                if let gopro = self?.connectedGoPros[uuid] {
-                    self?.wifiManager.updateWiFiState(for: uuid, state: state, gopro: gopro)
+                // Delivered on the CoreBluetooth queue; the state read and the
+                // update it feeds must happen together on the state queue.
+                self?.onStateQueue {
+                    guard let self = self, let gopro = self.connectedGoPros[uuid] else { return }
+                    self.wifiManager.updateWiFiState(for: uuid, state: state, gopro: gopro)
                 }
             }
 
@@ -1067,19 +1101,20 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             return
         }
 
-        // Handle the generic case with enhanced logging
-        let camera = connectedGoPros[uuid] ?? GoPro(peripheral: peripheral)
+        // Handle the generic case with enhanced logging.
+        // cameraName is already resolved above, so there is no need to read
+        // connectedGoPros here -- this runs on the CoreBluetooth queue.
         let commandName = "Command Type \(commandType)"
 
         if success {
             ErrorHandler.info(
-                "Command '\(commandName)' succeeded for \(camera.name ?? "Unknown")"
+                "Command '\(commandName)' succeeded for \(cameraName)"
             )
             ErrorHandler.debug("Command response success for \(cameraName). Command type: \(commandType).")
         } else {
             let errorMsg = "Command failed - type \(commandType)"
             ErrorHandler.error(
-                "Command '\(commandName)' failed for \(camera.name ?? "Unknown"): \(errorMsg)"
+                "Command '\(commandName)' failed for \(cameraName): \(errorMsg)"
             )
             log("WARNING: Unhandled command response error for \(cameraName). Command type: \(commandType).")
             log("Command response error for \(cameraName). Command type: \(commandType).")
@@ -1105,17 +1140,13 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         switch (code, value) {
         case (233, 1):
             // Claimed control
-            if let gopro = connectedGoPros[peripheral.identifier] {
-                gopro.hasControl = true
-                ErrorHandler.debug("Claimed control")
-            }
+            // hasControl is @Published; this runs on the CoreBluetooth queue, so
+            // publishing from here would update SwiftUI off the main thread.
+            setHasControl(true, for: peripheral.identifier, reason: "Claimed control")
             return true
 
         case (233, 0):
-            if let gopro = connectedGoPros[peripheral.identifier] {
-                gopro.hasControl = false
-                ErrorHandler.debug("Lost control")
-            }
+            setHasControl(false, for: peripheral.identifier, reason: "Lost control")
             return true
 
         case (235, 1):
@@ -1585,7 +1616,20 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     private func removeDevice(from collection: ReferenceWritableKeyPath<BLEManager, [UUID: GoPro]>, uuid: UUID) {
+        assertOnStateQueue()
         self[keyPath: collection].removeValue(forKey: uuid)
+    }
+
+
+    /// Update a camera's control flag on the main thread.
+    /// `hasControl` is `@Published`, but the command responses that change it are
+    /// delivered on the CoreBluetooth queue.
+    private func setHasControl(_ hasControl: Bool, for uuid: UUID, reason: String) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, let gopro = self.connectedGoPros[uuid] else { return }
+            gopro.hasControl = hasControl
+            ErrorHandler.debug(reason)
+        }
     }
 
     private func updateDevice(
@@ -1731,6 +1775,20 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         DispatchQueue.main.async {
             self.connectionRetryStatus[uuid] = .connecting
             self.connectingGoPros[uuid] = gopro
+            // A connecting camera must not remain in discoveredGoPros: the three
+            // dictionaries are meant to be mutually exclusive.
+            self.discoveredGoPros.removeValue(forKey: uuid)
+
+            // CBCentralManager.connect has no implicit timeout, so the first
+            // attempt needs the same timeout guard the retry path already has.
+            // Without it a camera can sit in connectingGoPros forever, which
+            // also permanently prevents scanning from restarting.
+            self.connectionAttemptTimers[uuid]?.invalidate()
+            self.connectionAttemptTimers[uuid] = Timer.scheduledTimer(
+                withTimeInterval: self.connectionTimeout, repeats: false
+            ) { [weak self] _ in
+                self?.handleConnectionTimeout(for: uuid)
+            }
         }
 
         if let cbPeripheral = gopro.peripheral.cbPeripheral {
@@ -1762,8 +1820,14 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             centralManager.cancelPeripheralConnection(cbPeripheral)
         }
 
+        // Only the attempt timer is torn down here. The camera stays in
+        // connectingGoPros so that didFailToConnect's guard still matches —
+        // removing it first made the deferred failure handler drop the failure
+        // silently, stranding connectionRetryCount and pinning the UI status.
+        // Ownership of the connecting -> discovered transition belongs to
+        // didFailToConnect alone.
         DispatchQueue.main.async {
-            self.connectingGoPros.removeValue(forKey: uuid)
+            self.connectionAttemptTimers[uuid]?.invalidate()
             self.connectionAttemptTimers.removeValue(forKey: uuid)
         }
 
@@ -1773,7 +1837,11 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     private func retryConnection(for uuid: UUID) {
-        guard let gopro = discoveredGoPros[uuid], connectedGoPros[uuid] == nil else { return }
+        // A camera awaiting retry lives in connectingGoPros, not discoveredGoPros —
+        // connectToGoPro moves it out of discovered and the retry path leaves it in
+        // connecting. Guarding on discoveredGoPros here would disable all retries.
+        guard let gopro = connectingGoPros[uuid] ?? discoveredGoPros[uuid],
+              connectedGoPros[uuid] == nil else { return }
 
         // Check if device was intentionally put to sleep - don't retry if so
         if deviceStateManager.isDeviceSleeping(uuid) {
@@ -1794,6 +1862,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
             self.connectingGoPros[uuid] = gopro // Add to connecting list
 
             // Set up connection timeout for retry attempt
+            self.connectionAttemptTimers[uuid]?.invalidate()
             self.connectionAttemptTimers[uuid] = Timer.scheduledTimer(withTimeInterval: self.connectionTimeout, repeats: false) { [weak self] _ in
                 self?.handleConnectionTimeout(for: uuid)
             }
@@ -1823,15 +1892,22 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     func powerDownGoPro(uuid: UUID) {
-        guard let gopro = connectedGoPros[uuid] else { return }
+        // The read, the command, and the removal are one operation. An earlier
+        // version dispatched only the removal to main and left the lookup on the
+        // caller's queue, which is the pattern that fixes neither the data race
+        // nor the stale decision -- the camera can be removed by another path
+        // between the lookup and the write.
+        onStateQueue { [weak self] in
+            guard let self = self, let gopro = self.connectedGoPros[uuid] else { return }
 
-        sendPowerDownCommand(to: gopro)
+            self.sendPowerDownCommand(to: gopro)
+            self.log("\(gopro.peripheral.name ?? "GoPro") powered down.")
 
-        removeDevice(from: \.connectedGoPros, uuid: uuid)
-        log("\(gopro.peripheral.name ?? "GoPro") powered down.")
+            self.removeDevice(from: \.connectedGoPros, uuid: uuid)
 
-        if connectedGoPros.isEmpty {
-            stopKeepAliveTimer()
+            if self.connectedGoPros.isEmpty {
+                self.stopKeepAliveTimer()
+            }
         }
     }
 
@@ -1930,9 +2006,15 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
                             ErrorHandler.debug("Discarded \(discarded) timed out partial messages")
                         }
 
-                        // Query devices on background thread
-                        for uuid in self.connectedGoPros.keys {
-                            self.queryDevice(for: uuid)
+                        // Querying reads connection state, so the decision runs on
+                        // the state queue. Iterating connectedGoPros here on a
+                        // background queue both raced main's writes and could
+                        // mutate the dictionary mid-iteration. The characteristic
+                        // writes themselves still go to bleCommandQueue.
+                        self.onStateQueue {
+                            for uuid in self.connectedGoPros.keys {
+                                self.queryDevice(for: uuid)
+                            }
                         }
 
                         // Restart timer
@@ -2024,6 +2106,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     private func queryDevice(for uuid: UUID) {
+        assertOnStateQueue()
         guard let gopro = connectedGoPros[uuid] else { return; }
 
         // Check if there are any pending multipart responses for this device
@@ -2066,6 +2149,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     private func queryDeviceSetting(for peripheral: PeripheralContainer, command: [UInt8], description: String) {
+        assertOnStateQueue()
         guard connectedGoPros[peripheral.identifier]?.hasControl == true else {
             return
         }
@@ -2131,9 +2215,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     }
 
     func powerDownAllDevices() {
-        connectedGoPros.forEach {_, gopro in
-            powerDownGoPro(uuid: gopro.peripheral.identifier)
-        }
+        // Iterate a snapshot: powerDownGoPro removes from connectedGoPros, and
+        // mutating a dictionary while iterating it is undefined behaviour.
+        let uuids = Array(connectedGoPros.keys)
+        uuids.forEach { powerDownGoPro(uuid: $0) }
     }
 
     func enableAPAllDevices() {
@@ -2229,7 +2314,7 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
 
         // Find cameras that should be connected but aren't
         let stragglers = targetConnectedCameras.filter { cameraId in
-            // Camera should be connected if it's discovered but not connected and not currently connecting
+            // Camera should be connected if it's discovered but not connected and not currently connecting.
             // A camera the user asked to sleep is excluded: it stays visible and
             // manually connectable, but must not be reconnected automatically.
             return discoveredGoPros[cameraId] != nil &&
@@ -2313,8 +2398,10 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
         }
     }
 
-    /// Create app state context for crash reporting
+    /// Create app state context for crash reporting.
+    /// Reads connection state, so it must run on the state queue like any other reader.
     func createAppStateContext(activeGroup: String? = nil) -> AppStateContext {
+        assertOnStateQueue()
         return AppStateContext(
             connectedCameras: connectedGoPros.count,
             discoveredCameras: discoveredGoPros.count,
