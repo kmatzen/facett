@@ -10,8 +10,10 @@ class BLEResponseHandler {
     }
 
     // MARK: - Query Response Handling
-    func handleQueryResponse(_ data: Data, for peripheral: CBPeripheral) {
-        let responses = parseResponseType(from: data, peripheral: peripheral)
+    /// - Parameter channel: the notify characteristic this data arrived on. Packet
+    ///   reassembly is per-characteristic, so this must identify the real source.
+    func handleQueryResponse(_ data: Data, for peripheral: CBPeripheral, channel: CBUUID) {
+        let responses = parseResponseType(from: data, peripheral: peripheral, channel: channel)
         updateGoProStatus(uuid: peripheral.identifier, with: responses)
     }
 
@@ -285,14 +287,16 @@ class BLEResponseHandler {
     }
 
     // MARK: - Response Parsing
-    private func parseResponseType(from data: Data, peripheral: CBPeripheral) -> [ResponseType] {
+    private func parseResponseType(from data: Data, peripheral: CBPeripheral, channel: CBUUID) -> [ResponseType] {
         guard let bleManager = bleManager else { return [] }
 
         // Log the raw data
         ErrorHandler.debug("Parsing response data: \(data.map { String(format: "%02x", $0) }.joined(separator: " "))")
 
         let peripheralId = peripheral.identifier.uuidString
-        let responses = bleManager.bleParser.processPacket(data, peripheralId: peripheralId)
+        let responses = bleManager.bleParser.processPacket(
+            data, peripheralId: peripheralId, channelId: channel.uuidString
+        )
 
         return responses
     }

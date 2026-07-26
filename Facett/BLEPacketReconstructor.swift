@@ -12,15 +12,45 @@ class BLEPacketReconstructor {
 
     // MARK: - Properties
 
+    /// Reassembly state is touched from the CoreBluetooth delegate queue (via
+    /// processPacket) and from the device-query timer's queue (via checkTimeouts).
+    /// Those are different queues, so the dictionaries below were being mutated
+    /// concurrently. They do not drive SwiftUI, so unlike the connection state in
+    /// BLEManager they do not need to live on main -- a dedicated serial queue is
+    /// the cheaper discipline and keeps packet handling off the main thread.
+    private let stateQueue = DispatchQueue(label: "com.kmatzen.facett.ble.reassembly")
+
     private var continuationBuffer: [String: Data] = [:]
     private var expectedMessageLength: [String: Int] = [:]
     private var lastPacketTime: [String: Date] = [:]
+    /// Query/command ID of the message currently accumulating for each buffer key.
+    private var bufferQueryID: [String: UInt8] = [:]
+    /// Next expected 4-bit continuation sequence counter for each buffer key.
+    private var nextSequence: [String: UInt8] = [:]
+
+    /// Accumulation is a per-characteristic context: each notify characteristic
+    /// carries one message at a time, but different characteristics (query
+    /// responses on 0x0077, settings responses on 0x0075) stream independently.
+    /// Keying by (peripheral, characteristic) makes continuation routing
+    /// deterministic. Keying by query ID -- as this previously did -- invented
+    /// concurrency the protocol does not have while ignoring the concurrency it
+    /// does, so a continuation could be appended to an unrelated message's buffer.
+    private func bufferKey(peripheralId: String, channelId: String) -> String {
+        return "\(peripheralId)|\(channelId)"
+    }
 
     // MARK: - Public Interface
 
     /// Process a BLE packet and return complete message data if available.
     /// Returns the TLV payload and query/command ID once the full message is assembled.
-    func processPacket(_ data: Data, peripheralId: String) -> (data: Data, queryID: UInt8)? {
+    /// - Parameters:
+    ///   - channelId: the notify characteristic this packet arrived on. Packets
+    ///     from different characteristics must not share an accumulation buffer.
+    func processPacket(_ data: Data, peripheralId: String, channelId: String) -> (data: Data, queryID: UInt8)? {
+        return processPacketLocked(data, peripheralId: peripheralId, channelId: channelId)
+    }
+
+    private func processPacketLocked(_ data: Data, peripheralId: String, channelId: String) -> (data: Data, queryID: UInt8)? {
         guard !data.isEmpty else {
             ErrorHandler.bleError("Received empty data")
             return nil
@@ -28,26 +58,48 @@ class BLEPacketReconstructor {
 
         let header = data[0]
         let isContinuation = (header & 0x80) != 0
+        let key = bufferKey(peripheralId: peripheralId, channelId: channelId)
 
         if isContinuation {
-            return handleContinuationPacket(data: data, peripheralId: peripheralId)
+            return handleContinuationPacket(data: data, bufferKey: key)
         } else {
-            return handleStartPacket(data: data, peripheralId: peripheralId)
+            return handleStartPacket(data: data, bufferKey: key)
         }
     }
 
+    /// Discard the message accumulating on this buffer key, if any.
+    private func discardBuffer(_ key: String) {
+        continuationBuffer.removeValue(forKey: key)
+        expectedMessageLength.removeValue(forKey: key)
+        lastPacketTime.removeValue(forKey: key)
+        bufferQueryID.removeValue(forKey: key)
+        nextSequence.removeValue(forKey: key)
+    }
+
     func clearBuffers() {
+        clearBuffersLocked()
+    }
+
+    private func clearBuffersLocked() {
         continuationBuffer.removeAll()
         expectedMessageLength.removeAll()
         lastPacketTime.removeAll()
+        bufferQueryID.removeAll()
+        nextSequence.removeAll()
     }
 
     func clearBuffers(for peripheralId: String) {
-        let keysToRemove = continuationBuffer.keys.filter { $0.hasPrefix(peripheralId) }
+        clearBuffersLocked(for: peripheralId)
+    }
+
+    private func clearBuffersLocked(for peripheralId: String) {
+        // Match on the full peripheral component, not a bare prefix: a bare
+        // prefix would let peripheral "p1" clear peripheral "p10"'s buffers.
+        let keysToRemove = continuationBuffer.keys.filter {
+            $0.hasPrefix("\(peripheralId)|")
+        }
         for key in keysToRemove {
-            continuationBuffer.removeValue(forKey: key)
-            expectedMessageLength.removeValue(forKey: key)
-            lastPacketTime.removeValue(forKey: key)
+            discardBuffer(key)
         }
     }
 
@@ -55,32 +107,36 @@ class BLEPacketReconstructor {
         return (continuationBuffer, expectedMessageLength)
     }
 
-    func checkTimeouts(timeoutInterval: TimeInterval = 5.0) -> [(data: Data, queryID: UInt8)] {
+    /// Discard buffers that have gone quiet, and report how many were dropped.
+    ///
+    /// A timed-out buffer is known to be short. It used to be force-completed and
+    /// parsed as TLV, which decoded whatever prefix happened to parse and applied
+    /// it as real settings/status. Worse, the peripheral half of the buffer key
+    /// was discarded on the way out, so the caller applied one camera's truncated
+    /// data to every connected camera. Truncated data is now dropped outright.
+    @discardableResult
+    func checkTimeouts(timeoutInterval: TimeInterval = 5.0) -> Int {
+        return checkTimeoutsLocked(timeoutInterval: timeoutInterval)
+    }
+
+    private func checkTimeoutsLocked(timeoutInterval: TimeInterval) -> Int {
         let now = Date()
-        var results: [(data: Data, queryID: UInt8)] = []
         var keysToRemove: [String] = []
 
-        for (bufferKey, lastTime) in lastPacketTime {
-            if now.timeIntervalSince(lastTime) > timeoutInterval {
-                ErrorHandler.warning("Timeout detected for buffer", context: ["buffer_key": bufferKey])
-
-                if let buffer = continuationBuffer[bufferKey] {
-                    let parts = bufferKey.split(separator: ":")
-                    let queryID = parts.count >= 2 ? (UInt8(parts[1]) ?? 0) : 0
-                    results.append((data: buffer, queryID: queryID))
-                }
-
-                keysToRemove.append(bufferKey)
-            }
+        for (bufferKey, lastTime) in lastPacketTime where now.timeIntervalSince(lastTime) > timeoutInterval {
+            ErrorHandler.warning("Discarding timed-out partial message", context: [
+                "buffer_key": bufferKey,
+                "bytes_accumulated": String(continuationBuffer[bufferKey]?.count ?? 0),
+                "bytes_expected": String(expectedMessageLength[bufferKey] ?? 0)
+            ])
+            keysToRemove.append(bufferKey)
         }
 
         for key in keysToRemove {
-            continuationBuffer.removeValue(forKey: key)
-            expectedMessageLength.removeValue(forKey: key)
-            lastPacketTime.removeValue(forKey: key)
+            discardBuffer(key)
         }
 
-        return results
+        return keysToRemove.count
     }
 
     // MARK: - Private Methods
@@ -123,7 +179,7 @@ class BLEPacketReconstructor {
 
     /// Handle a start packet (first or only packet of a message).
     /// Message payload format for queries: [QueryID] [Status] [TLV data...]
-    private func handleStartPacket(data: Data, peripheralId: String) -> (data: Data, queryID: UInt8)? {
+    private func handleStartPacket(data: Data, bufferKey: String) -> (data: Data, queryID: UInt8)? {
         guard let (messageLength, payloadStart) = parseStartHeader(data) else {
             return nil
         }
@@ -142,17 +198,34 @@ class BLEPacketReconstructor {
         let tlvData = payloadInThisPacket.count > 2 ? payloadInThisPacket.subdata(in: 2..<payloadInThisPacket.count) : Data()
         let expectedTLVLength = messageLength - 2
 
-        let bufferKey = "\(peripheralId):\(queryID)"
+        guard expectedTLVLength >= 0 else {
+            ErrorHandler.bleError("Start packet declares a length shorter than its own header", context: [
+                "message_length": String(messageLength)
+            ])
+            return nil
+        }
+
+        // A start packet on a characteristic that already has a message in
+        // progress means the earlier message will never complete. Drop it
+        // loudly rather than silently overwriting it.
+        if let stale = continuationBuffer[bufferKey] {
+            ErrorHandler.warning("Discarding incomplete message superseded by a new start packet", context: [
+                "buffer_key": bufferKey,
+                "bytes_accumulated": String(stale.count),
+                "bytes_expected": String(expectedMessageLength[bufferKey] ?? 0)
+            ])
+            discardBuffer(bufferKey)
+        }
+
+        if tlvData.count >= expectedTLVLength {
+            return (data: tlvData, queryID: queryID)
+        }
+
         continuationBuffer[bufferKey] = tlvData
         expectedMessageLength[bufferKey] = expectedTLVLength
         lastPacketTime[bufferKey] = Date()
-
-        if tlvData.count >= expectedTLVLength {
-            continuationBuffer.removeValue(forKey: bufferKey)
-            expectedMessageLength.removeValue(forKey: bufferKey)
-            lastPacketTime.removeValue(forKey: bufferKey)
-            return (data: tlvData, queryID: queryID)
-        }
+        bufferQueryID[bufferKey] = queryID
+        nextSequence[bufferKey] = 0  // the first continuation packet carries counter 0
 
         return nil
     }
@@ -160,7 +233,7 @@ class BLEPacketReconstructor {
     /// Handle a continuation packet by appending its payload to an existing buffer.
     /// Continuation header: bit 7 = 1, bits 3-0 = sequence counter.
     /// Payload starts at byte 1.
-    private func handleContinuationPacket(data: Data, peripheralId: String) -> (data: Data, queryID: UInt8)? {
+    private func handleContinuationPacket(data: Data, bufferKey: String) -> (data: Data, queryID: UInt8)? {
         guard data.count >= 2 else {
             ErrorHandler.bleError("Continuation packet too short", context: ["data_length": String(data.count)])
             return nil
@@ -168,44 +241,41 @@ class BLEPacketReconstructor {
 
         let payload = data.subdata(in: 1..<data.count)
 
-        let bufferKeys = continuationBuffer.keys.filter { $0.hasPrefix(peripheralId) }
-
-        if bufferKeys.isEmpty {
-            ErrorHandler.bleError("No buffer found for continuation packet", context: ["peripheral_id": peripheralId])
-            return nil
-        }
-
-        let bufferKey: String
-        if bufferKeys.count == 1 {
-            bufferKey = bufferKeys[0]
-        } else if let mostRecent = bufferKeys.max(by: { (lastPacketTime[$0] ?? .distantPast) < (lastPacketTime[$1] ?? .distantPast) }) {
-            bufferKey = mostRecent
-        } else {
-            ErrorHandler.bleError("No buffer key found for continuation packet", context: ["peripheral_id": peripheralId])
-            return nil
-        }
-
         guard var buffer = continuationBuffer[bufferKey],
-              let expectedLength = expectedMessageLength[bufferKey] else {
-            ErrorHandler.bleError("Buffer or expected length not found", context: ["buffer_key": bufferKey])
+              let expectedLength = expectedMessageLength[bufferKey],
+              let queryID = bufferQueryID[bufferKey],
+              let expectedSequence = nextSequence[bufferKey] else {
+            ErrorHandler.bleError("No message in progress for continuation packet", context: [
+                "buffer_key": bufferKey
+            ])
+            return nil
+        }
+
+        // Bits 3-0 are the 4-bit sequence counter, wrapping at 0xF. A gap means
+        // a packet was dropped or duplicated; the accumulated bytes can no longer
+        // be trusted, since appending regardless would still satisfy the length
+        // check and decode as plausible-but-wrong TLV.
+        let sequence = data[0] & 0x0F
+        guard sequence == expectedSequence else {
+            ErrorHandler.warning("Continuation sequence gap - discarding message", context: [
+                "buffer_key": bufferKey,
+                "expected_sequence": String(expectedSequence),
+                "received_sequence": String(sequence)
+            ])
+            discardBuffer(bufferKey)
             return nil
         }
 
         buffer.append(payload)
-        continuationBuffer[bufferKey] = buffer
         lastPacketTime[bufferKey] = Date()
+        nextSequence[bufferKey] = (expectedSequence + 1) & 0x0F
 
         if buffer.count >= expectedLength {
-            let parts = bufferKey.split(separator: ":")
-            let queryID = parts.count >= 2 ? (UInt8(parts[1]) ?? 0) : 0
-
-            continuationBuffer.removeValue(forKey: bufferKey)
-            expectedMessageLength.removeValue(forKey: bufferKey)
-            lastPacketTime.removeValue(forKey: bufferKey)
-
+            discardBuffer(bufferKey)
             return (data: buffer, queryID: queryID)
         }
 
+        continuationBuffer[bufferKey] = buffer
         return nil
     }
 }
