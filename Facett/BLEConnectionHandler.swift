@@ -19,25 +19,23 @@ class BLEConnectionHandler {
 
         ErrorHandler.info("Connected to \(cameraName)")
 
-        guard let gopro = bleManager.connectingGoPros[uuid] else {
-            return
-        }
-
         // Note: Camera name will be stored when we receive the apSSID (serial number)
         // in BLEResponseHandler after the camera connects and sends status
 
         // Notify connection manager to cancel timeout timers
         bleManager.connectionManager.handleConnectionSuccess(uuid)
 
-        // Clear retry status on successful connection on main thread
-        DispatchQueue.main.async {
+        // This runs on the CoreBluetooth queue. The lookup used to happen here and
+        // the move to connectedGoPros in a later main block, so the camera could be
+        // removed in between and the stale reference reinserted. The whole
+        // read-decide-write now runs as one block on the state queue.
+        bleManager.onStateQueue {
+            guard let gopro = bleManager.connectingGoPros[uuid] else { return }
+
             bleManager.connectionRetryStatus.removeValue(forKey: uuid)
             // A camera we just connected to is awake, whatever we last told it.
             bleManager.setDeviceSleeping(uuid, isSleeping: false)
-        }
 
-        // UI updates must happen on main thread
-        DispatchQueue.main.async {
             let wasEmpty = bleManager.connectedGoPros.isEmpty
 
             bleManager.connectedGoPros[uuid] = gopro // Move to connected list
@@ -47,16 +45,17 @@ class BLEConnectionHandler {
             // Reset initialization flag for new connection
             gopro.hasReceivedInitialStatus = false
 
+            gopro.peripheral.delegate = bleManager
+
             if wasEmpty {
                 bleManager.startKeepAliveTimer()
             }
 
             // Notify that camera is connected
             bleManager.onCameraConnected?(uuid)
-        }
 
-        gopro.peripheral.delegate = bleManager
-        gopro.peripheral.discoverServices([BLEManager.Constants.UUIDs.goproService, BLEManager.Constants.UUIDs.goproWiFiService])
+            gopro.peripheral.discoverServices([BLEManager.Constants.UUIDs.goproService, BLEManager.Constants.UUIDs.goproWiFiService])
+        }
     }
 
     func handleDisconnection(_ peripheral: CBPeripheral, error: Error?) {
