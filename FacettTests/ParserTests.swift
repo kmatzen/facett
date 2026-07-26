@@ -781,7 +781,19 @@ final class GoProCommandTests: XCTestCase {
             "modeVideo": GoProCommands.Mode.video,
             "modePhoto": GoProCommands.Mode.photo,
             "modeMultishot": GoProCommands.Mode.multishot,
-            "keepAlive": GoProCommands.KeepAlive.ping
+            "keepAlive": GoProCommands.KeepAlive.ping,
+            // The query constants were previously omitted from this test, and four
+            // of them were wrong: a short declaration truncates the request, and an
+            // over-declaration stalls the camera waiting for continuation packets
+            // that never arrive.
+            "status1": GoProCommands.Status.status1,
+            "status2": GoProCommands.Status.status2,
+            "wifiCredentials": GoProCommands.Status.wifiCredentials,
+            "wifiCredentialsAlt": GoProCommands.Status.wifiCredentialsAlt,
+            "getWiFiConfig": GoProCommands.Status.getWiFiConfig,
+            "settings1": GoProCommands.Settings.settings1,
+            "settings2": GoProCommands.Settings.settings2,
+            "settings3": GoProCommands.Settings.settings3
         ]
 
         for (name, cmd) in commands {

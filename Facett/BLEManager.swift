@@ -1,161 +1,6 @@
 import SwiftUI
 import CoreBluetooth
 
-// MARK: - Camera Mode Enum
-
-enum CameraMode: Int, CaseIterable {
-    case video = 12
-    case photo = 17
-    case multishot = 19  // Burst Photo (closest to multishot)
-    case looping = 15
-    case nightPhoto = 18
-    case timeLapseVideo = 13
-    case timeLapsePhoto = 20
-    case nightLapsePhoto = 21
-    case timeWarpVideo = 24
-    case liveBurst = 25
-    case nightLapseVideo = 26
-    case sloMo = 27
-    case unknown = -1
-
-    var description: String {
-        switch self {
-        case .video: return "Video"
-        case .photo: return "Photo"
-        case .multishot: return "Multishot (Burst Photo)"
-        case .looping: return "Looping"
-        case .nightPhoto: return "Night Photo"
-        case .timeLapseVideo: return "Time Lapse Video"
-        case .timeLapsePhoto: return "Time Lapse Photo"
-        case .nightLapsePhoto: return "Night Lapse Photo"
-        case .timeWarpVideo: return "Time Warp Video"
-        case .liveBurst: return "Live Burst"
-        case .nightLapseVideo: return "Night Lapse Video"
-        case .sloMo: return "Slo-Mo"
-        case .unknown: return "Unknown"
-        }
-    }
-
-    static func fromInt(_ mode: Int) -> CameraMode {
-        return CameraMode(rawValue: mode) ?? .unknown
-    }
-}
-
-struct GoProSetting {
-    let id: UInt8
-    let valueLength: UInt8
-    let expectedValue: UInt8
-    let description: String
-}
-
-enum ResponseType {
-    // Status
-    case batteryLevel(Int)
-    case batteryPercentage(Int)
-    case overheating(Bool)
-    case isBusy(Bool)
-    case encoding(Bool)
-    case videoEncodingDuration(Int32)
-    case sdCardRemaining(Int64)
-
-    case gpsLock(Bool)
-    case isReady(Bool)
-    case isCold(Bool)
-    case sdCardWriteSpeedError(Bool)
-    case usbConnected(Bool)
-    case batteryPresent(Bool)
-    case externalBatteryPresent(Bool)
-    case connectedDevices(Int8)
-    case usbControlled(Bool)
-    case cameraControlId(Int)
-
-    // Setting
-    case videoResolution(Int)
-    case framesPerSecond(Int)
-    case autoPowerDown(Int)
-    case gps(Bool)
-    case videoLens(Int)
-    case antiFlicker(Int)
-    case hypersmooth(Int)
-    case maxLens(Bool)
-    case videoPerformanceMode(Int)
-    case colorProfile(Int)
-    case lcdBrightness(Int)
-    case isoMax(Int)
-    case language(Int)
-    case voiceControl(Bool)
-    case beeps(Int)
-    case isoMin(Int)
-    case protuneEnabled(Bool)
-    case whiteBalance(Int)
-    case ev(Int)
-    case bitrate(Int)
-    case rawAudio(Int)
-    case mode(Int)
-    case shutter(Int)
-    case led(Int)
-    case wind(Int)
-    case hindsight(Int)
-    case quickCapture(Bool)
-    case voiceLanguageControl(Int)
-
-            // Additional status and settings cases
-        case wifiBars(Int)
-        case cameraMode(Int)
-        case videoMode(Int)
-        case photoMode(Int)
-        case multiShotMode(Int)
-        case flatMode(Int)
-        case videoProtune(Bool)
-        case videoStabilization(Int)
-        case videoFieldOfView(Int)
-        case turboMode(Bool)
-
-        // WiFi credentials
-        case wifiSSID(String)
-        case apSSID(String)
-        case apState(Int)
-        case wifiPassword(String)
-        case apPassword(String)
-
-    // New settings from firmware analysis
-    case privacy(Int)
-    case autoLock(Int)
-    case wakeOnVoice(Bool)
-    case timer(Int)
-    case videoCompression(Int)
-    case landscapeLock(Int)
-    case screenSaverFront(Int)
-    case screenSaverRear(Int)
-    case defaultPreset(Int)
-    case frontLcdMode(Int)
-    case secondaryStreamGopSize(Int)
-    case secondaryStreamIdrInterval(Int)
-    case secondaryStreamBitRate(Int)
-    case secondaryStreamWindowSize(Int)
-    case gopSize(Int)
-    case idrInterval(Int)
-    case bitRateMode(Int)
-    case audioProtune(Bool)
-    case noAudioTrack(Bool)
-
-    // New status from firmware analysis
-    case cameraControlStatus(Bool)
-    case allowControlOverUsb(Bool)
-    case turboTransfer(Bool)
-    case sdRatingCheckError(Bool)
-    case videoLowTempAlert(Bool)
-    case battOkayForOta(Bool)
-    case firstTimeUse(Bool)
-    case mobileFriendlyVideo(Bool)
-    case analyticsReady(Bool)
-    case analyticsSize(Int)
-    case nextPollMsec(Int)
-    case inContextualMenu(Bool)
-    case creatingPreset(Bool)
-    case linuxCoreActive(Bool)
-}
-
 class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     @Published var connectedGoPros: [UUID: GoPro] = [:]
     @Published var connectingGoPros: [UUID: GoPro] = [:] // Tracks GoPros in the process of connecting
@@ -1311,6 +1156,18 @@ class BLEManager: NSObject, ObservableObject, CBCentralManagerDelegate, CBPeriph
     func verifySettings(_ response: Data, for peripheral: CBPeripheral) {
         // Convert the response to a byte array for logging
         let byteArray = response.map { String(format: "0x%02X", $0) }.joined(separator: " ")
+
+        // Byte 2 is the status byte of [header][settingID][status]. A short or
+        // malformed response would otherwise trap here — unlike handleCommandResponse,
+        // which length-checks before indexing.
+        guard response.count >= 3 else {
+            ErrorHandler.bleError("Settings response too short to verify", context: [
+                "peripheral": peripheral.name ?? "Unknown",
+                "length": String(response.count),
+                "bytes": byteArray
+            ])
+            return
+        }
 
         if response[2] == 0 {
             ErrorHandler.debug("\(peripheral.name ?? "Device") settings applied successfully. Response bytes: \(byteArray)")

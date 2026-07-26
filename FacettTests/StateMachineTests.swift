@@ -81,6 +81,68 @@ class StateMachineTests: XCTestCase {
         XCTAssertEqual(cameraStatus, .ready, "Should be ready when all conditions are met")
     }
 
+    // The mode- and settings-mismatch branches were unreachable from this test
+    // file while it reimplemented the priority ladder locally — the copy omitted
+    // them entirely, so these cases were silently untested.
+
+    func testStatePriority_ModeMismatch() {
+        let status = CameraStatusData()
+        status.isOverheating = false
+        status.isEncoding = false
+        status.isReady = true
+        status.batteryLevel = 3
+        status.sdCardRemaining = 1000000
+
+        let cameraStatus = getCameraStatusFromSettings(
+            status, hasReceivedInitialStatus: true, hasModeMismatch: true
+        )
+        XCTAssertEqual(cameraStatus, .modeMismatch, "Mode mismatch should take precedence over ready")
+    }
+
+    func testStatePriority_SettingsMismatch() {
+        let status = CameraStatusData()
+        status.isOverheating = false
+        status.isEncoding = false
+        status.isReady = true
+        status.batteryLevel = 3
+        status.sdCardRemaining = 1000000
+
+        let cameraStatus = getCameraStatusFromSettings(
+            status, hasReceivedInitialStatus: true, hasSettingsMismatch: true
+        )
+        XCTAssertEqual(cameraStatus, .settingsMismatch, "Settings mismatch should take precedence over ready")
+    }
+
+    func testStatePriority_ModeMismatchBeatsSettingsMismatch() {
+        let status = CameraStatusData()
+        status.isOverheating = false
+        status.isEncoding = false
+        status.isReady = true
+        status.batteryLevel = 3
+        status.sdCardRemaining = 1000000
+
+        let cameraStatus = getCameraStatusFromSettings(
+            status, hasReceivedInitialStatus: true,
+            hasModeMismatch: true, hasSettingsMismatch: true
+        )
+        XCTAssertEqual(cameraStatus, .modeMismatch, "Mode mismatch is more critical than settings mismatch")
+    }
+
+    func testStatePriority_RecordingBeatsMismatch() {
+        let status = CameraStatusData()
+        status.isOverheating = false
+        status.isEncoding = true
+        status.isReady = true
+        status.batteryLevel = 3
+        status.sdCardRemaining = 1000000
+
+        let cameraStatus = getCameraStatusFromSettings(
+            status, hasReceivedInitialStatus: true,
+            hasModeMismatch: true, hasSettingsMismatch: true
+        )
+        XCTAssertEqual(cameraStatus, .recording, "Recording should take precedence over either mismatch")
+    }
+
     func testStatePriority_ErrorState() {
         // Test that error state is returned when not ready and no critical errors
         let status = CameraStatusData()
@@ -224,35 +286,21 @@ class StateMachineTests: XCTestCase {
 
     // MARK: - Helper Methods
 
-    private func getCameraStatusFromSettings(_ status: CameraStatusData, hasReceivedInitialStatus: Bool) -> CameraStatus {
-        // If camera hasn't received initial status yet, show initializing
-        if !hasReceivedInitialStatus {
-            return .initializing
-        }
-
-        // Check for critical errors first
-        if status.isOverheating == true {
-            return .overheating
-        }
-
-        if status.sdCardRemaining == nil || status.sdCardRemaining == 0 {
-            return .noSDCard
-        }
-
-        if let batteryLevel = status.batteryLevel, batteryLevel <= 1 {
-            return .lowBattery
-        }
-
-        if status.isEncoding == true {
-            return .recording
-        }
-
-        // Check if camera is ready
-        if status.isReady == true {
-            return .ready
-        }
-
-        return .error
+    /// Delegates to the production decision so this test cannot drift from it.
+    /// It previously reimplemented the priority ladder locally and had already
+    /// diverged: the copy omitted the mode- and settings-mismatch checks.
+    private func getCameraStatusFromSettings(
+        _ status: CameraStatusData,
+        hasReceivedInitialStatus: Bool,
+        hasModeMismatch: Bool = false,
+        hasSettingsMismatch: Bool = false
+    ) -> CameraStatus {
+        return CameraGroupManager.cameraStatus(
+            status: status,
+            hasReceivedInitialStatus: hasReceivedInitialStatus,
+            hasModeMismatch: hasModeMismatch,
+            hasSettingsMismatch: hasSettingsMismatch
+        )
     }
 
     private func getGroupStatusFromSettings(
