@@ -180,7 +180,7 @@ class SettingsValidator {
         static let hypersmooth = 0...2
         static let videoPerformanceMode = 0...1
         static let colorProfile = 0...1
-        static let lcdBrightness = 0...2
+        static let lcdBrightness = 0...100 // percentage, see CameraSettingDescriptions.lcdBrightnessProfileDescription
         static let isoMax = 0...2
         static let isoMin = 0...8
         static let language = 0...1
@@ -189,7 +189,7 @@ class SettingsValidator {
         static let ev = 0...5
         static let bitrate = 0...1
         static let rawAudio = 0...1
-        static let mode = 0...1
+        static let mode = 0...27 // raw GoPro camera mode IDs, see CameraSettingDescriptions.modeDescription
         static let shutter = 0...1
         static let led = 0...2
         static let wind = 0...1
