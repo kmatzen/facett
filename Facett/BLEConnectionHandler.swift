@@ -32,6 +32,8 @@ class BLEConnectionHandler {
         // Clear retry status on successful connection on main thread
         DispatchQueue.main.async {
             bleManager.connectionRetryStatus.removeValue(forKey: uuid)
+            // A camera we just connected to is awake, whatever we last told it.
+            bleManager.setDeviceSleeping(uuid, isSleeping: false)
         }
 
         // UI updates must happen on main thread
@@ -71,20 +73,16 @@ class BLEConnectionHandler {
             let isSleeping = bleManager.isDeviceSleeping(uuid)
             let wasConnected = bleManager.connectedGoPros[uuid] != nil
 
+            // A sleeping camera stays on the discovered list so the user can still
+            // see and tap it. Withholding it here made it unreachable, because
+            // connectToGoPro requires the camera to be in discoveredGoPros. The
+            // sleep flag suppresses automatic reconnection instead, below.
             if let gopro = bleManager.connectedGoPros[uuid] {
                 bleManager.connectedGoPros.removeValue(forKey: uuid)
-                if !isSleeping {
-                    bleManager.discoveredGoPros[uuid] = gopro
-                } else {
-                    ErrorHandler.debug("\(cameraName) is sleeping - not moving to discovered list")
-                }
+                bleManager.discoveredGoPros[uuid] = gopro
             } else if let gopro = bleManager.connectingGoPros[uuid] {
                 bleManager.connectingGoPros.removeValue(forKey: uuid)
-                if !isSleeping {
-                    bleManager.discoveredGoPros[uuid] = gopro
-                } else {
-                    ErrorHandler.debug("\(cameraName) is sleeping - not moving to discovered list")
-                }
+                bleManager.discoveredGoPros[uuid] = gopro
             }
 
             if bleManager.connectedGoPros.isEmpty {
