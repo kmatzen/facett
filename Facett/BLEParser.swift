@@ -294,10 +294,13 @@ class GoProBLEParser {
     /// - Parameters:
     ///   - data: Raw packet data from BLE
     ///   - peripheralId: Unique identifier for the peripheral
+    ///   - channelId: Notify characteristic the packet arrived on
     /// - Returns: Array of parsed response types, empty if message is incomplete
-    func processPacket(_ data: Data, peripheralId: String) -> [ResponseType] {
+    func processPacket(_ data: Data, peripheralId: String, channelId: String) -> [ResponseType] {
         // Use packet reconstructor to get complete message data
-        guard let (messageData, queryID) = packetReconstructor.processPacket(data, peripheralId: peripheralId) else {
+        guard let (messageData, queryID) = packetReconstructor.processPacket(
+            data, peripheralId: peripheralId, channelId: channelId
+        ) else {
             return [] // Message is incomplete, waiting for more packets
         }
 
@@ -332,23 +335,12 @@ class GoProBLEParser {
         return packetReconstructor.getBufferState()
     }
 
-    /// Check for timeouts and force completion of incomplete responses
+    /// Discard partial messages that have gone quiet.
     /// - Parameter timeoutInterval: Timeout interval in seconds (default: 5 seconds)
-    /// - Returns: Array of parsed responses from timed out buffers
-    func checkTimeouts(timeoutInterval: TimeInterval = 5.0) -> [ResponseType] {
-        let timeoutResults = packetReconstructor.checkTimeouts(timeoutInterval: timeoutInterval)
-        var responses: [ResponseType] = []
-
-        for (messageData, queryID) in timeoutResults {
-            // Parse TLV data from timed out message
-            let tlvEntries = tlvParser.parseTLVData(messageData)
-
-            // Map TLV entries to response types
-            let timeoutResponses = responseMapper.mapToResponseTypes(entries: tlvEntries, queryID: queryID)
-            responses.append(contentsOf: timeoutResponses)
-        }
-
-        return responses
+    /// - Returns: Number of partial messages discarded
+    @discardableResult
+    func checkTimeouts(timeoutInterval: TimeInterval = 5.0) -> Int {
+        return packetReconstructor.checkTimeouts(timeoutInterval: timeoutInterval)
     }
 }
 
